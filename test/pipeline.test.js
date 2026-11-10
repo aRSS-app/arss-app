@@ -36,3 +36,12 @@ test('interval parsing', () => {
   assert.equal(parseInterval(90), 90);
   assert.throws(() => parseInterval(1));
 });
+
+test('seed is idempotent and feeds are due', async () => {
+  const { seed } = await import('../src/seed.js');
+  const feeds = JSON.parse((await import('node:fs')).readFileSync(new URL('../seed/feeds.json', import.meta.url), 'utf8'));
+  const db = openDb(':memory:');
+  assert.equal(seed(db, feeds), feeds.length);
+  assert.equal(seed(db, feeds), 0);
+  assert.equal(dueFeeds(db).length, feeds.length);
+});

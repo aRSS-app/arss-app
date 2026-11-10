@@ -1,0 +1,11 @@
+[
+  { "name": "PETALS Blog", "url": "https://usepetals.com/blog/feed.xml", "interval": "daily" },
+  { "name": "Adrian Lansdown.com - Posts", "url": "https://www.adrianlansdown.com/posts/feed.xml", "interval": "daily" },
+  { "name": "Managing Engineers", "url": "https://pinecast.com/feed/managingengineers", "interval": "weekly" },
+  { "name": "optional.is/required", "url": "https://optional.is/required/feed/?cat=-819", "interval": "daily" },
+  { "name": "Micro - Si Jobling", "url": "https://sijobling.com/micro/feed", "interval": "hourly" },
+  { "name": "Comics 'n' stuff", "url": "https://skinnydrawnboy.substack.com/feed", "interval": "weekly" },
+  { "name": "Simon Shares", "url": "https://feeds.transistor.fm/simon-shares", "interval": "weekly" },
+  { "name": "Si Jobling (YouTube)", "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCFZ-J-ZNLPODQoNig6wJ_UA", "interval": "daily" },
+  { "name": "Good Morning (optional.is newsletter)", "url": "https://optional.is/newsletter/feeds/gm.xml", "interval": "daily" }
+]
