@@ -1,6 +1,7 @@
 import express from 'express';
 import { openDb, listFeeds, listItems, parseInterval } from './db.js';
 import { fetchFeed, runDue } from './fetcher.js';
+import { mountMcp } from './mcp-http.js';
 
 const db = openDb();
 const app = express();
@@ -83,4 +84,8 @@ tick();
 
 const port = Number(process.env.PORT || 3333);
 const host = process.env.HOST || '127.0.0.1';
+const token = process.env.ARSS_TOKEN;
+const loopback = ['127.0.0.1', 'localhost', '::1'].includes(host);
+if (!loopback && !token) console.warn('WARNING: listening beyond localhost with no ARSS_TOKEN; /mcp is disabled (the web UI and API are still open).');
+else mountMcp(app, db, token);
 app.listen(port, host, () => console.log(`aRSS running at http://${host}:${port}`));

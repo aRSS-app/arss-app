@@ -3,7 +3,8 @@
 Simple self-hosted RSS reader. Node 22.13+, no native dependencies.
 
 - `src/server.js` - web UI + JSON API + per-feed scheduler (port 3333, localhost only)
-- `src/mcp.js` - MCP server (stdio) so Claude can read the same data
+- `src/mcp.js` - MCP server over stdio (local Claude on the same Mac)
+- `POST /mcp` - the same MCP tools over HTTP (Streamable HTTP, stateless), served by `src/server.js`
 - Data lives in `data/arss.db` (SQLite). Override with `ARSS_DB=/path/to.db`.
 
 ## Run
@@ -26,6 +27,22 @@ Keep it running on the Mac mini with launchd (save as `~/Library/LaunchAgents/ap
 To reach it from other devices, set `HOST=0.0.0.0` (there is no auth, so only do this on a trusted network or behind Tailscale).
 
 ## Claude (MCP)
+
+### HTTP (remote clients, e.g. Claude on the web or phone)
+
+Start the server with a token:
+
+    ARSS_TOKEN=$(openssl rand -hex 24) npm start
+
+The endpoint is `http://127.0.0.1:3333/mcp` with header `Authorization: Bearer <token>`. If `ARSS_TOKEN` is set, every request needs it. If you bind beyond localhost (`HOST=0.0.0.0`) without a token, `/mcp` is disabled.
+
+To reach it from outside the Mac mini, put it behind HTTPS, for example Tailscale Funnel or a Cloudflare Tunnel. Note that the web UI and `/api` have no auth, so expose only `/mcp` (route that path alone in the tunnel config), not the whole port.
+
+Claude Code: `claude mcp add --transport http arss https://YOUR-HOST/mcp --header "Authorization: Bearer <token>"`
+
+Claude's web and mobile custom connectors expect OAuth rather than a static bearer header, so those may not accept this as it stands.
+
+### stdio (same machine)
 
 Add to Claude Desktop's `claude_desktop_config.json`:
 
