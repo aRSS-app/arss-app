@@ -58,3 +58,4 @@ It's an opportunity to utilise the latest Web tech stacks (e.g. React, Vue, Node
 ----
 
 _Reclaim your content._
+See [APP.md](APP.md) for how to run the app and connect it to Claude via MCP.
