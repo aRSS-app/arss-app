@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aRSS</title>
+<style>
+  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#e5e5ea; --accent:#0a6cff; --side:#f5f5f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#98989d; --line:#38383a; --side:#242426; --accent:#4c9aff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 -apple-system, system-ui, sans-serif; background:var(--bg); color:var(--fg); display:flex; height:100vh; }
+  aside { width:300px; background:var(--side); border-right:1px solid var(--line); overflow:auto; padding:12px; flex-shrink:0; }
+  main { flex:1; overflow:auto; padding:0 20px 40px; }
+  h1 { font-size:18px; margin:4px 0 12px; }
+  input, select, button { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+  button { cursor:pointer; } button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  form.add { display:grid; gap:6px; margin-bottom:14px; }
+  .feed { padding:8px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .feed:hover, .feed.active { background:var(--line); }
+  .feed .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge { color:var(--muted); font-size:12px; }
+  .feedmeta { font-size:12px; color:var(--muted); padding:0 8px 8px; display:none; }
+  .feed.active + .feedmeta { display:block; }
+  .err { color:#d70015; }
+  .bar { position:sticky; top:0; background:var(--bg); padding:12px 0; display:flex; gap:8px; align-items:center; border-bottom:1px solid var(--line); z-index:1; }
+  .bar input[type=search] { flex:1; }
+  article { padding:14px 0; border-bottom:1px solid var(--line); }
+  article.read h2 { color:var(--muted); font-weight:400; }
+  article h2 { font-size:16px; margin:0 0 2px; } article h2 a { color:inherit; text-decoration:none; } article h2 a:hover { color:var(--accent); }
+  article .meta { font-size:12px; color:var(--muted); }
+  article p { margin:6px 0 0; }
+  @media (max-width:700px) { body { flex-direction:column; height:auto; } aside { width:auto; max-height:40vh; } }
+</style>
+</head>
+<body>
+<aside>
+  <h1>aRSS</h1>
+  <form class="add" id="add">
+    <input name="url" type="url" placeholder="Feed URL" required>
+    <select name="interval">
+      <option value="hourly">Hourly</option>
+      <option value="daily" selected>Daily</option>
+      <option value="weekly">Weekly</option>
+      <option value="custom">Custom (minutes)...</option>
+    </select>
+    <input name="custom" type="number" min="5" placeholder="Minutes" hidden>
+    <button class="primary">Subscribe</button>
+  </form>
+  <div id="feeds"></div>
+</aside>
+<main>
+  <div class="bar">
+    <input type="search" id="q" placeholder="Search">
+    <label><input type="checkbox" id="unread"> Unread</label>
+    <button id="refresh">Refresh all</button>
+  </div>
+  <div id="items"></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const api = async (path, opts = {}) => {
+  const r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body && JSON.stringify(opts.body) });
+  if (r.status === 204) return;
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+};
+let feeds = [], current = null;
+
+const label = (m) => m === 60 ? 'hourly' : m === 1440 ? 'daily' : m === 10080 ? 'weekly' : `every ${m} min`;
+const ago = (ms) => ms ? new Date(ms).toLocaleString('en-GB') : 'never';
+
+async function loadFeeds() {
+  feeds = await api('/feeds');
+  const total = feeds.reduce((n, f) => n + f.unread_count, 0);
+  $('#feeds').innerHTML =
+    `<div class="feed ${current === null ? 'active' : ''}" data-id=""><span class="name">All items</span><span class="badge">${total}</span></div>` +
+    feeds.map((f) => `
+      <div class="feed ${current === f.id ? 'active' : ''}" data-id="${f.id}"><span class="name">${esc(f.title || f.url)}</span><span class="badge">${f.unread_count}</span></div>
+      <div class="feedmeta">
+        ${f.last_error ? `<div class="err">${esc(f.last_error)}</div>` : ''}
+        Last fetched: ${ago(f.last_fetched_at)}<br>
+        Frequency: <select data-interval="${f.id}">
+          ${[['60','Hourly'],['1440','Daily'],['10080','Weekly']].map(([v, n]) => `<option value="${v}" ${f.interval_minutes == v ? 'selected' : ''}>${n}</option>`).join('')}
+          ${[60,1440,10080].includes(f.interval_minutes) ? '' : `<option selected value="${f.interval_minutes}">${label(f.interval_minutes)}</option>`}
+        </select>
+        <button data-refresh="${f.id}">Refresh</button> <button data-readall="${f.id}">Mark read</button> <button data-del="${f.id}">Unsubscribe</button>
+      </div>`).join('');
+}
+
+async function loadItems() {
+  const p = new URLSearchParams({ limit: 100 });
+  if (current) p.set('feed', current);
+  if ($('#unread').checked) p.set('unread', '1');
+  if ($('#q').value) p.set('q', $('#q').value);
+  const items = await api('/items?' + p);
+  $('#items').innerHTML = items.map((i) => `
+    <article class="${i.read ? 'read' : ''}" data-id="${i.id}">
+      <h2><a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(i.title || '(untitled)')}</a></h2>
+      <div class="meta">${esc(i.feed_title)} · ${ago(i.published_at || i.fetched_at)}${i.author ? ' · ' + esc(i.author) : ''}</div>
+      <p>${esc((i.summary || '').slice(0, 300))}</p>
+    </article>`).join('') || '<p class="badge">Nothing here yet.</p>';
+}
+
+const reload = () => Promise.all([loadFeeds(), loadItems()]);
+
+$('#add').elements.interval.onchange = (e) => { $('#add').elements.custom.hidden = e.target.value !== 'custom'; };
+$('#add').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  try {
+    const interval = f.interval.value === 'custom' ? Number(f.custom.value) : f.interval.value;
+    const r = await api('/feeds', { method: 'POST', body: { url: f.url.value, interval } });
+    if (r.result.error) alert('Subscribed, but first fetch failed: ' + r.result.error);
+    e.target.reset(); f.custom.hidden = true;
+    await reload();
+  } catch (err) { alert(err.message); } finally { btn.disabled = false; }
+};
+
+$('#feeds').onclick = async (e) => {
+  const t = e.target;
+  if (t.dataset.refresh) { t.disabled = true; await api(`/feeds/${t.dataset.refresh}/refresh`, { method: 'POST' }); return reload(); }
+  if (t.dataset.readall) { await api(`/feeds/${t.dataset.readall}/read-all`, { method: 'POST' }); return reload(); }
+  if (t.dataset.del) { if (confirm('Unsubscribe and delete its items?')) { await api(`/feeds/${t.dataset.del}`, { method: 'DELETE' }); current = null; reload(); } return; }
+  if (t.tagName === 'SELECT') return;
+  const row = t.closest('.feed');
+  if (row) { current = row.dataset.id ? Number(row.dataset.id) : null; reload(); }
+};
+$('#feeds').onchange = async (e) => {
+  if (e.target.dataset.interval) await api(`/feeds/${e.target.dataset.interval}`, { method: 'PATCH', body: { interval: Number(e.target.value) } });
+};
+$('#items').onclick = async (e) => {
+  if (!e.target.closest('a')) return;
+  const a = e.target.closest('article');
+  if (!a.classList.contains('read')) { a.classList.add('read'); await api(`/items/${a.dataset.id}/read`, { method: 'POST', body: {} }); loadFeeds(); }
+};
+$('#refresh').onclick = async (e) => { e.target.disabled = true; try { await api('/refresh', { method: 'POST' }); await reload(); } finally { e.target.disabled = false; } };
+$('#unread').onchange = loadItems;
+let t; $('#q').oninput = () => { clearTimeout(t); t = setTimeout(loadItems, 250); };
+reload();
+</script>
+</body>
+</html>
