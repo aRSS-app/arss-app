@@ -21,7 +21,7 @@ Keep it running on the Mac mini with launchd (save as `~/Library/LaunchAgents/ap
     <?xml version="1.0" encoding="UTF-8"?>
     <plist version="1.0"><dict>
       <key>Label</key><string>app.arss</string>
-      <key>WorkingDirectory</key><string>/Users/YOU/arss-web</string>
+      <key>WorkingDirectory</key><string>/Users/YOU/arss-app</string>
       <key>ProgramArguments</key><array><string>/opt/homebrew/bin/node</string><string>src/server.js</string></array>
       <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
     </dict></plist>
@@ -48,9 +48,9 @@ Claude's web and mobile custom connectors expect OAuth rather than a static bear
 
 Add to Claude Desktop's `claude_desktop_config.json`:
 
-    { "mcpServers": { "arss": { "command": "/opt/homebrew/bin/node", "args": ["/Users/YOU/arss-web/src/mcp.js"] } } }
+    { "mcpServers": { "arss": { "command": "/opt/homebrew/bin/node", "args": ["/Users/YOU/arss-app/src/mcp.js"] } } }
 
-Or for Claude Code: `claude mcp add arss -- node /Users/YOU/arss-web/src/mcp.js`
+Or for Claude Code: `claude mcp add arss -- node /Users/YOU/arss-app/src/mcp.js`
 
 Tools: `list_feeds`, `get_items` (filter by feed, unread, date, search), `get_item`, `mark_read`.
 The MCP process reads the same SQLite file as the web app (WAL mode), so it works whether or not the web server is running, though fetching only happens while the server runs.

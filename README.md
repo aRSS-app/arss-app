@@ -37,8 +37,8 @@ This gives us a chance to tap into data structures that already exist, where peo
 
 You need [Node.js](https://nodejs.org/) 22.13 or newer.
 
-    git clone https://github.com/aRSSapp/arss-web.git
-    cd arss-web
+    git clone https://github.com/aRSS-app/arss-app.git
+    cd arss-app
     npm install
     npm start
 
@@ -69,7 +69,7 @@ It's safe to re-run, as feeds you already have are skipped. The running server f
 
 aRSS exposes `list_feeds`, `get_items`, `get_item` and `mark_read` as MCP tools, over stdio for the same machine or over HTTP for remote clients. Any MCP-capable agent can connect. For example, with Claude Code on the same machine:
 
-    claude mcp add arss -- node /path/to/arss-web/src/mcp.js
+    claude mcp add arss -- node /path/to/arss-app/src/mcp.js
 
 See [APP.md](APP.md) for the HTTP endpoint, tokens, keeping the server running with launchd and exposing it safely.
 
@@ -118,7 +118,7 @@ The landing page at [arss.app](https://arss.app) lives in `site/`. It is plain s
 
 We're looking for advocates for RSS and open standards, people to help shape requirements, designers (UX & UI) and engineers.
 
-- Open an issue or pull request on [GitHub](https://github.com/aRSSapp/arss-web)
+- Open an issue or pull request on [GitHub](https://github.com/aRSS-app/arss-app)
 - Try it out and tell us what's missing
 
 ## Licence
