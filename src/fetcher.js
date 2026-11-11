@@ -6,6 +6,23 @@ const parser = new Parser({
   customFields: { item: [['content:encoded', 'contentEncoded']] },
 });
 
+// Some real feeds contain bare ampersands outside CDATA, which is invalid XML.
+export const fixAmpersands = (xml) => xml.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+
+async function parseFeedUrl(url) {
+  // Use fetch rather than rss-parser's own HTTP client: that client does not drain
+  // non-2xx responses, and the resulting socket ECONNRESET is unhandled and kills the process.
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'aRSS/0.1 (+personal feed reader)', Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*' },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(20000),
+  }).catch((e) => { throw new Error(e.cause?.message ? `${e.message}: ${e.cause.message}` : e.message); });
+  if (!res.ok) { await res.arrayBuffer().catch(() => {}); throw new Error('Status code ' + res.status); }
+  const xml = await res.text();
+  try { return await parser.parseString(xml); }
+  catch (e) { return await parser.parseString(fixAmpersands(xml)); }
+}
+
 const toMs = (d) => {
   const t = d ? Date.parse(d) : NaN;
   return Number.isNaN(t) ? null : t;
@@ -13,7 +30,7 @@ const toMs = (d) => {
 
 export async function fetchFeed(db, feed, now = Date.now()) {
   try {
-    const parsed = await parser.parseURL(feed.url);
+    const parsed = await parseFeedUrl(feed.url);
     db.prepare('UPDATE feeds SET title = COALESCE(?, title), site_url = COALESCE(?, site_url), last_fetched_at = ?, last_error = NULL WHERE id = ?')
       .run(parsed.title || null, parsed.link || null, now, feed.id);
     const insert = db.prepare(`

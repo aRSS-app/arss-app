@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { openDb, listItems, parseInterval } from '../src/db.js';
-import { fetchFeed, dueFeeds } from '../src/fetcher.js';
+import { fetchFeed, dueFeeds, fixAmpersands } from '../src/fetcher.js';
 
 const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title><link>http://x</link>
 <item><guid>a</guid><title>One</title><link>http://x/1</link><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description>hello world</description></item>
@@ -44,4 +44,27 @@ test('seed is idempotent and feeds are due', async () => {
   assert.equal(seed(db, feeds), feeds.length);
   assert.equal(seed(db, feeds), 0);
   assert.equal(dueFeeds(db).length, feeds.length);
+});
+
+test('feed with bare ampersands still parses', async () => {
+  const bad = rss.replace('<title>One</title>', '<title>Mavens & the Macabre</title>');
+  const srv = createServer((_, res) => { res.setHeader('content-type', 'application/rss+xml'); res.end(bad); });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const db = openDb(':memory:');
+  db.prepare('INSERT INTO feeds (url, interval_minutes, created_at) VALUES (?, 60, ?)').run(`http://127.0.0.1:${srv.address().port}/f`, Date.now());
+  assert.deepEqual(await fetchFeed(db, db.prepare('SELECT * FROM feeds').get()), { added: 2, total: 2 });
+  assert.ok(listItems(db, {}).some((i) => i.title === 'Mavens & the Macabre'));
+  assert.equal(fixAmpersands('a &amp; b & c &#38; d'), 'a &amp; b &amp; c &#38; d');
+  srv.close();
+});
+
+test('non-2xx feed records an error without crashing', async () => {
+  const srv = createServer((_, res) => { res.statusCode = 404; res.end('nope'); });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const db = openDb(':memory:');
+  db.prepare('INSERT INTO feeds (url, interval_minutes, created_at) VALUES (?, 60, ?)').run(`http://127.0.0.1:${srv.address().port}/f`, Date.now());
+  const r = await fetchFeed(db, db.prepare('SELECT * FROM feeds').get());
+  assert.equal(r.error, 'Status code 404');
+  assert.equal(db.prepare('SELECT last_error FROM feeds').get().last_error, 'Status code 404');
+  srv.close();
 });
