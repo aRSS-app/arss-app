@@ -1,6 +1,6 @@
-# aRSS
+# aRSS app
 
-**aRSS** (a Really Simple Syndication app) is an open source, self-hosted RSS reader with a timeline UI akin to social media.
+**aRSS app** (a Really Simple Syndication app) is an open source, self-hosted RSS reader with a timeline UI akin to social media.
 
 It's an attempt to make it easier to decentralise your social circle's content with no surveillance capitalism or anti-social algorithms trying to influence your experience.
 
