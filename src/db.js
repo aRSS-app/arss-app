@@ -62,11 +62,12 @@ export function listFeeds(db) {
     FROM feeds f ORDER BY COALESCE(f.title, f.url) COLLATE NOCASE`).all();
 }
 
-export function listItems(db, { feedId, unread, search, since, limit = 50, offset = 0 } = {}) {
+export function listItems(db, { feedId, unread, search, since, afterId, limit = 50, offset = 0 } = {}) {
   const where = [];
   const args = [];
   if (feedId) { where.push('i.feed_id = ?'); args.push(feedId); }
   if (unread) where.push('i.read = 0');
+  if (afterId) { where.push('i.id > ?'); args.push(Number(afterId)); }
   if (since) { where.push('COALESCE(i.published_at, i.fetched_at) >= ?'); args.push(since); }
   if (search) {
     where.push(`(i.title LIKE ? ESCAPE '\\' OR i.summary LIKE ? ESCAPE '\\' OR i.content LIKE ? ESCAPE '\\')`);

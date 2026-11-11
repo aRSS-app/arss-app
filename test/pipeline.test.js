@@ -97,3 +97,13 @@ test('images are stored, and backfilled for items fetched before images were cap
   assert.equal(listItems(db, {}).find((i) => i.title === 'One').image, 'http://x/one.jpg');
   srv.close();
 });
+
+test('afterId returns only items added since', () => {
+  const db = openDb(':memory:');
+  const feed = db.prepare('INSERT INTO feeds (url, created_at) VALUES (?, ?)').run('https://example.com/feed', 1).lastInsertRowid;
+  const add = (n) => db.prepare('INSERT INTO items (feed_id, guid, title, fetched_at) VALUES (?, ?, ?, ?)').run(feed, 'g' + n, 'Post ' + n, n).lastInsertRowid;
+  const first = add(1);
+  assert.equal(listItems(db, { afterId: first }).length, 0);
+  add(2);
+  assert.deepEqual(listItems(db, { afterId: first }).map((i) => i.title), ['Post 2']);
+});

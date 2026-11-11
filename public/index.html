@@ -79,6 +79,10 @@
   .post.read .dot { visibility:hidden; }
   .post.read h2 { font-weight:700; color:color-mix(in srgb, var(--fg) 72%, var(--bg)); }
   .end { padding:28px 16px 60px; text-align:center; color:var(--muted); }
+  /* "New posts" pill: floats under the bar until clicked, so the timeline never moves on its own. */
+  #fresh { position:absolute; top:100%; left:0; right:0; height:0; display:flex; justify-content:center; }
+  #fresh button { height:36px; margin-top:10px; padding:0 18px; font-size:14px; box-shadow:0 6px 18px -6px rgba(0, 0, 0, .45); }
+  #fresh[hidden] { display:none; }
 
   @media (max-width:880px) {
     .shell { grid-template-columns:minmax(0, 600px); }
@@ -117,6 +121,7 @@
       <button class="ghost" id="refresh">Refresh</button>
     </div>
     <div class="row"><input type="search" id="q" placeholder="Search posts"></div>
+    <div id="fresh" hidden><button class="pill" id="freshBtn"></button></div>
   </div>
   <div id="items"></div>
   <div class="end" id="end"></div>
@@ -133,7 +138,8 @@ const api = async (path, opts = {}) => {
   return j;
 };
 const PAGE = 50, POST_LENGTH = 140;
-let feeds = [], current = null, shown = 0;
+const POLL_MS = 60_000, NEW_MAX = 100;
+let feeds = [], current = null, shown = 0, latest = 0;
 
 const label = (m) => m === 60 ? 'hourly' : m === 1440 ? 'daily' : m === 10080 ? 'weekly' : `every ${m} min`;
 const full = (ms) => ms ? new Date(ms).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
@@ -196,13 +202,13 @@ const post = (i) => {
         <h2><a href="${esc(link)}" target="_blank" rel="noopener">${esc(i.title || '(untitled)')}</a></h2>
         ${text ? `<p>${esc(text)}</p>` : ''}
         ${safe(i.image) ? `<a class="media" href="${esc(link)}" target="_blank" rel="noopener"><img src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>` : ''}
-        <div class="foot"><span class="dot" title="Unread"></span>${i.author ? `<span>${esc(i.author)}</span>` : ''}<a href="${esc(link)}" target="_blank" rel="noopener">Read on ${esc(host(link) || site)} ↗</a></div>
+        <div class="foot"><span class="dot" title="Unread"></span>${i.author ? `<span>${esc(i.author)}</span>` : ''}<a href="${esc(link)}" target="_blank" rel="noopener">View on ${esc(host(link) || site)} ↗</a></div>
       </div>
     </article>`;
 };
 
 async function loadItems(more = false) {
-  if (!more) shown = 0;
+  if (!more) { shown = 0; latest = await api('/latest').then((r) => r.id, () => null); showFresh(0, 0); }
   const p = new URLSearchParams({ limit: PAGE, offset: shown });
   if (current) p.set('feed', current);
   if ($('#unread').checked) p.set('unread', '1');
@@ -213,6 +219,29 @@ async function loadItems(more = false) {
   shown += items.length;
   $('#end').innerHTML = items.length === PAGE ? '<button class="ghost" id="more">Show older posts</button>'
     : shown ? "That's everything. You're all caught up." : 'Nothing here yet. Follow a feed to get started.';
+}
+
+// New posts since the timeline was last loaded: `all` goes in the tab title, `here` (those matching
+// the current feed and search) on the pill. Nothing is inserted until the pill is clicked.
+const count = (n) => n >= NEW_MAX ? NEW_MAX + '+' : n;
+function showFresh(all, here) {
+  document.title = all ? `(${count(all)}) aRSS` : 'aRSS';
+  $('#fresh').hidden = !here;
+  $('#freshBtn').textContent = `Show ${count(here)} new post${here === 1 ? '' : 's'}`;
+}
+async function checkFresh() {
+  if (latest === null) return; // an older server without /api/latest: no new-post checks
+  try {
+    const all = (await api(`/items?after=${latest}&limit=${NEW_MAX}`)).length;
+    let here = all;
+    if (all && (current || $('#q').value)) {
+      const p = new URLSearchParams({ after: latest, limit: NEW_MAX });
+      if (current) p.set('feed', current);
+      if ($('#q').value) p.set('q', $('#q').value);
+      here = (await api('/items?' + p)).length;
+    }
+    showFresh(all, here);
+  } catch { /* server unreachable: try again on the next poll */ }
 }
 
 const reload = () => Promise.all([loadFeeds(), loadItems()]);
@@ -264,6 +293,9 @@ $('#end').onclick = (e) => { if (e.target.id === 'more') { e.target.disabled = t
 $('#menu').onclick = () => { document.body.classList.toggle('menu'); window.scrollTo(0, 0); };
 $('#refresh').onclick = async (e) => { e.target.disabled = true; try { await api('/refresh', { method: 'POST' }); await reload(); } finally { e.target.disabled = false; } };
 $('#unread').onchange = () => loadItems();
+$('#freshBtn').onclick = () => { window.scrollTo(0, 0); reload(); };
+setInterval(checkFresh, POLL_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkFresh(); });
 let t; $('#q').oninput = () => { clearTimeout(t); t = setTimeout(() => loadItems(), 250); };
 reload();
 </script>

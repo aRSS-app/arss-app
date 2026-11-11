@@ -54,10 +54,14 @@ app.get('/api/items', (req, res) => {
     feedId: q.feed ? Number(q.feed) : undefined,
     unread: q.unread === '1',
     search: q.q || undefined,
+    afterId: q.after ? Number(q.after) : undefined,
     limit: q.limit,
     offset: q.offset,
   }));
 });
+
+// Highest item id so far. The UI remembers it, then asks for items `after` it to spot new posts.
+app.get('/api/latest', (req, res) => res.json({ id: db.prepare('SELECT MAX(id) AS id FROM items').get().id ?? 0 }));
 
 app.post('/api/items/:id/read', (req, res) => {
   db.prepare('UPDATE items SET read = ? WHERE id = ?').run(req.body?.read === false ? 0 : 1, req.params.id);
