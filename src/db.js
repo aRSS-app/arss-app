@@ -37,6 +37,12 @@ export function openDb(path = DB_PATH) {
     );
     CREATE INDEX IF NOT EXISTS items_published ON items(published_at DESC);
   `);
+  // Columns added after the first release.
+  const addColumn = (table, col) => {
+    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
+  };
+  addColumn('feeds', 'icon_url');
+  addColumn('items', 'image');
   return db;
 }
 
@@ -68,7 +74,8 @@ export function listItems(db, { feedId, unread, search, since, limit = 50, offse
     args.push(like, like, like);
   }
   const sql = `
-    SELECT i.id, i.feed_id, f.title AS feed_title, i.title, i.link, i.author, i.summary, i.content,
+    SELECT i.id, i.feed_id, f.title AS feed_title, i.title, i.link, i.author, i.summary, i.content, i.image,
+           f.icon_url AS feed_icon, f.site_url AS feed_site_url, f.url AS feed_url,
            i.published_at, i.fetched_at, i.read
     FROM items i JOIN feeds f ON f.id = i.feed_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}

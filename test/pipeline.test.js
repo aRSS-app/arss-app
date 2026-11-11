@@ -68,3 +68,32 @@ test('non-2xx feed records an error without crashing', async () => {
   assert.equal(db.prepare('SELECT last_error FROM feeds').get().last_error, 'Status code 404');
   srv.close();
 });
+
+test('featured images come from media tags, enclosures or the first real body image', async () => {
+  const { extractImage } = await import('../src/fetcher.js');
+  assert.equal(extractImage({ enclosure: { url: 'https://a/e.jpg', type: 'image/jpeg' } }), 'https://a/e.jpg');
+  assert.equal(extractImage({ enclosure: { url: 'https://a/e.mp3', type: 'audio/mpeg' } }), null);
+  assert.equal(extractImage({ mediaGroup: { 'media:thumbnail': [{ $: { url: 'https://a/t.jpg' } }] } }), 'https://a/t.jpg');
+  assert.equal(extractImage({ link: 'https://a/post/', content: '<img width="1" height="1" src="/px.gif"><img src="/pic.png?a=1&amp;b=2">' }), 'https://a/pic.png?a=1&b=2');
+  assert.equal(extractImage({ itunes: { image: 'https://a/show.jpg' } }, ['https://a/show.jpg']), null);
+  assert.equal(extractImage({ content: '<img src="javascript:alert(1)">' }), null);
+});
+
+test('images are stored, and backfilled for items fetched before images were captured', async () => {
+  const withImg = rss.replace('<description>hello world</description>', '<description>hello world</description><enclosure url="http://x/one.jpg" type="image/jpeg" length="1"/>');
+  let body = rss;
+  const srv = createServer((req, res) => {
+    if (req.url !== '/feed') { res.statusCode = 404; return res.end(); }
+    res.setHeader('content-type', 'application/rss+xml'); res.end(body);
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const db = openDb(':memory:');
+  db.prepare("INSERT INTO feeds (url, interval_minutes, created_at, icon_url) VALUES (?, 60, ?, '')").run(`http://127.0.0.1:${srv.address().port}/feed`, Date.now());
+  const feed = db.prepare('SELECT * FROM feeds').get();
+  await fetchFeed(db, feed);
+  assert.equal(listItems(db, {}).find((i) => i.title === 'One').image, null);
+  body = withImg;
+  assert.deepEqual(await fetchFeed(db, feed), { added: 0, total: 2 });
+  assert.equal(listItems(db, {}).find((i) => i.title === 'One').image, 'http://x/one.jpg');
+  srv.close();
+});
