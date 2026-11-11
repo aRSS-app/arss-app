@@ -84,7 +84,7 @@ See [APP.md](APP.md) for the HTTP endpoint, tokens, keeping the server running w
 
 ## Landing page
 
-The landing page in `site/` is plain static HTML, deployed to a Cloudflare Worker as static assets (see [wrangler.jsonc](wrangler.jsonc)). The reader app itself is not part of that deployment.
+The landing page at [arss.app](https://arss.app) lives in `site/`. It is plain static HTML, deployed to a Cloudflare Worker as static assets (see [wrangler.jsonc](wrangler.jsonc)). The reader app itself is not part of that deployment.
 
     npm run site          # preview locally with wrangler dev
     npm run deploy:site   # deploy to Cloudflare (asks you to log in the first time)
