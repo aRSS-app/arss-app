@@ -4,8 +4,33 @@
     {
       "name": "arss",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
+      "runtimeArgs": [
+        "start"
+      ],
       "port": 3333
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4810",
+        "-d",
+        "site"
+      ],
+      "port": 4810
+    },
+    {
+      "name": "arss-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "ARSS_DB=data/demo.db",
+        "PORT=3344",
+        "node",
+        "src/server.js"
+      ],
+      "port": 3344
     }
   ]
 }

@@ -10,7 +10,9 @@
     "start": "node src/server.js",
     "mcp": "node src/mcp.js",
     "seed": "node src/seed.js",
-    "test": "node --test"
+    "test": "node --test",
+    "site": "npx wrangler dev",
+    "deploy:site": "npx wrangler deploy"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

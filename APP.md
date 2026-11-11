@@ -12,7 +12,7 @@ Simple self-hosted RSS reader. Node 22.13+, no native dependencies.
     npm install
     npm start        # http://127.0.0.1:3333
 
-`npm run seed` adds a set of example feeds (see `seed/feeds.json`; safe to re-run). The server fetches them on its next tick.
+`npm run seed` adds a few example feeds (see `seed/feeds.json`; safe to re-run). The server fetches them on its next tick.
 
 Each feed has its own frequency (hourly, daily, weekly or custom minutes), set when subscribing and changeable per feed in the sidebar. The scheduler checks once a minute and fetches any feed whose interval has elapsed. "Refresh" forces a fetch.
 
