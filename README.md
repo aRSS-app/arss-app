@@ -121,6 +121,10 @@ We're looking for advocates for RSS and open standards, people to help shape req
 - Open an issue or pull request on [GitHub](https://github.com/aRSSapp/arss-web)
 - Try it out and tell us what's missing
 
+## Licence
+
+[MIT](LICENSE)
+
 ----
 
 _Reclaim your content._
