@@ -1,0 +1,23 @@
+{
+  "name": "arss-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "mcp": "node src/mcp.js",
+    "seed": "node src/seed.js",
+    "test": "node --test",
+    "site": "npx wrangler dev",
+    "deploy:site": "npx wrangler deploy"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "express": "^5.3.0",
+    "rss-parser": "^3.13.0",
+    "zod": "^4.6.7"
+  }
+}

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aRSS - a Really Simple Syndication app</title>
+<meta name="description" content="aRSS is an open source, self-hosted RSS reader with a social-style timeline. No algorithms, no tracking, just the people you choose to follow.">
+<meta property="og:title" content="aRSS - a Really Simple Syndication app">
+<meta property="og:description" content="An open source, self-hosted RSS reader with a social-style timeline. Reclaim your content.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d7fe0'/%3E%3Ccircle cx='10' cy='22' r='3' fill='%23fff'/%3E%3Cpath d='M7 13a12 12 0 0 1 12 12M7 6a19 19 0 0 1 19 19' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg:#fff; --fg:#0f1419; --muted:#5b6876; --line:#e6ecf0; --soft:#f6f8fa; --accent:#1d7fe0; --accent-fg:#fff; --code-bg:#0f1419; --code-fg:#e9eef2;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161b; --fg:#e9eef2; --muted:#8b98a5; --line:#273038; --soft:#1a2027; --accent:#4aa3f5; --accent-fg:#0b1117; --code-bg:#0b0e12; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--fg); -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 20px; }
+
+  header { display:flex; align-items:center; justify-content:space-between; padding:18px 0; }
+  .brand { font-size:24px; font-weight:800; letter-spacing:-.5px; color:var(--fg); }
+  .brand span { color:var(--accent); }
+  .brand:hover { text-decoration:none; }
+  nav { display:flex; gap:20px; font-size:15px; }
+  nav a { color:var(--muted); }
+
+  .hero { padding:48px 0 40px; max-width:780px; }
+  h1 { font-size:clamp(36px, 6vw, 58px); line-height:1.05; letter-spacing:-1.5px; margin:0 0 20px; text-wrap:balance; }
+  h1 em { font-style:normal; color:var(--accent); }
+  .lede { font-size:20px; color:var(--muted); margin:0 0 28px; max-width:34em; }
+  .cta { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+  .pill { display:inline-block; border-radius:999px; padding:12px 22px; font-weight:700; background:var(--accent); color:var(--accent-fg); }
+  .pill.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); }
+  .pill:hover { text-decoration:none; filter:brightness(1.08); }
+  .pill.ghost:hover { background:var(--soft); filter:none; }
+  .pun { margin:20px 0 0; font-size:14px; color:var(--muted); }
+
+  /* Screenshots */
+  .shots { position:relative; margin:0 0 72px; padding:0 0 40px; }
+  .shots img { display:block; height:auto; border:1px solid var(--line); background:#fff; box-shadow:0 24px 60px -30px rgba(15, 20, 25, .45); }
+  .shots .desk { width:88%; border-radius:14px; }
+  .shots .phone { position:absolute; right:0; bottom:0; width:21%; border-radius:22px; border:6px solid var(--fg); }
+
+  section { padding:64px 0; border-top:1px solid var(--line); }
+  h2 { font-size:clamp(26px, 4vw, 34px); letter-spacing:-.6px; line-height:1.15; margin:0 0 12px; }
+  .sub { color:var(--muted); margin:0 0 32px; max-width:40em; }
+  .grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; }
+  .card { border:1px solid var(--line); border-radius:16px; padding:22px; }
+  .card h3 { margin:0 0 6px; font-size:18px; }
+  .card p { margin:0; color:var(--muted); font-size:15.5px; }
+  .grid.four { grid-template-columns:repeat(4, minmax(0, 1fr)); }
+  .note { margin:28px 0 0; padding:20px 22px; border-radius:16px; background:var(--soft); max-width:none; }
+  .story { max-width:42em; }
+  .story p { margin:0 0 16px; color:var(--muted); }
+
+  .start { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:40px; align-items:start; }
+  ol { margin:0; padding-left:1.2em; color:var(--muted); }
+  ol li { margin-bottom:10px; }
+  ol b { color:var(--fg); }
+  pre { margin:0; padding:20px; border-radius:16px; background:var(--code-bg); color:var(--code-fg); border:1px solid var(--line); overflow-x:auto; font:14px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre .c { color:#8b98a5; }
+  code { font:.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:var(--soft); padding:2px 6px; border-radius:6px; }
+
+  footer { border-top:1px solid var(--line); padding:28px 0 40px; color:var(--muted); font-size:14px; display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; }
+
+  @media (max-width: 1000px) and (min-width: 821px) { .grid.four { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 820px) {
+    .start { grid-template-columns:minmax(0, 1fr); gap:32px; }
+    .hero { padding:24px 0 32px; }
+    .grid, .grid.four { grid-template-columns:minmax(0, 1fr); }
+    .shots { margin-bottom:48px; padding-bottom:24px; }
+    .shots .desk { width:92%; }
+    .shots .phone { width:28%; border-width:4px; border-radius:14px; }
+    nav { gap:14px; }
+    section { padding:48px 0; }
+    .wrap { padding:0 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/">a<span>RSS</span></a>
+    <nav>
+      <a href="#why">Why RSS</a>
+      <a href="#story">Story</a>
+      <a href="#start">Get started</a>
+      <a href="https://github.com/aRSSapp/arss-web">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+        <h1>Your friends' websites, <em>in one timeline</em>.</h1>
+        <p class="lede">aRSS is an open source, self-hosted RSS reader that feels like a social feed. Subscribe to the people and sites you care about. No algorithm, no ads, no tracking.</p>
+        <div class="cta">
+          <a class="pill" href="https://github.com/aRSSapp/arss-web">Get started on GitHub</a>
+          <a class="pill ghost" href="#start">See how it runs</a>
+        </div>
+        <p class="pun">a Really Simple Syndication app. Yes, it's pronounced the way you think.</p>
+
+    </div>
+
+    <figure class="shots">
+      <img class="desk" src="img/timeline-desktop.jpg" width="2400" height="1520" alt="The aRSS timeline on desktop: a list of followed feeds on the left and their latest posts, newest first, on the right.">
+      <img class="phone" src="img/timeline-mobile.jpg" width="780" height="1600" alt="The same timeline on a phone.">
+    </figure>
+
+    <section id="why">
+      <h2>Why RSS?</h2>
+      <p class="sub">RSS has been quietly doing the job for over twenty years. It is still the best way to follow people without a platform in the middle.</p>
+      <div class="grid four">
+        <div class="card">
+          <h3>Decentralised by design</h3>
+          <p>Every site publishes its own feed. There's no central service to change the rules, rank your posts or switch off.</p>
+        </div>
+        <div class="card">
+          <h3>Owned by the creator</h3>
+          <p>The feed lives on the author's own site, under their own name. You follow the person, not their account on someone else's platform.</p>
+        </div>
+        <div class="card">
+          <h3>Really simple</h3>
+          <p>It's a small text file listing what's new, hence the name. Easy to publish, easy to read and easy to build on.</p>
+        </div>
+        <div class="card">
+          <h3>Extremely versatile</h3>
+          <p>That simplicity means it's already everywhere: blogs, podcasts, YouTube channels, newsletters, changelogs.</p>
+        </div>
+      </div>
+      <p class="note"><b>Publish once, syndicate everywhere.</b> Because so much of the web already speaks RSS, aRSS taps into structures that exist today. It's the <a href="https://indieweb.org/POSSE">POSSE</a> idea: write on your own site first and let the feed carry it wherever people want to read.</p>
+    </section>
+
+    <section id="what">
+      <h2>What aRSS adds</h2>
+      <p class="sub">A friendly, familiar face on the open web.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>A timeline, not an inbox</h3>
+          <p>Posts from every feed in one chronological stream, with search, unread tracking and per-feed views. No algorithm deciding what you see.</p>
+        </div>
+        <div class="card">
+          <h3>Run it where you like</h3>
+          <p>Run it locally on your own machine, or deploy it somewhere you trust to keep it safe. It's one small Node server and a SQLite file.</p>
+        </div>
+        <div class="card">
+          <h3>Ask your agent</h3>
+          <p>A built-in MCP service lets your agent of choice search your feeds, so it can find that post you read last month and have since forgotten.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="start">
+      <h2>Up and running in a minute</h2>
+      <p class="sub">You need Node 22.13 or newer. That's the whole list.</p>
+      <div class="start">
+        <pre><code style="background:none;padding:0"><span class="c"># get the code</span>
+git clone https://github.com/aRSSapp/arss-web.git
+cd arss-web
+npm install
+
+<span class="c"># optional: add a few example feeds</span>
+npm run seed
+
+<span class="c"># start the reader</span>
+npm start</code></pre>
+        <ol>
+          <li><b>Clone and install.</b> Dependencies are plain JavaScript, so there's nothing to compile.</li>
+          <li><b>Seed some feeds</b> if you'd like something to read straight away, or skip it and add your own.</li>
+          <li><b>Open <code>http://127.0.0.1:3333</code></b> and paste in any feed URL to subscribe.</li>
+          <li><b>Leave it running</b> and each feed refreshes on the schedule you pick.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="story">
+      <h2>The story so far</h2>
+      <div class="story">
+        <p>aRSS was conceived back in 2018, as Twitter was taking another turn for the worse. The plan was simple: make it easier to decentralise your social circle's content, with no surveillance capitalism or anti-social algorithms trying to influence your experience.</p>
+        <p>Like many side projects, it lost traction and motivation. Thanks to agentic (vibe) coding, it has a new lease of life.</p>
+        <p>It was inspired by Aral Balkan's <a href="https://ar.al/2018/06/29/reclaiming-rss/">Reclaiming RSS</a>, and it's built in the open by the people who use it. Ideas, issues and pull requests are all welcome on <a href="https://github.com/aRSSapp/arss-web">GitHub</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>aRSS · Reclaim your content.</span>
+    <a href="https://github.com/aRSSapp/arss-web">github.com/aRSSapp/arss-web</a>
+  </footer>
+</div>
+</body>
+</html>

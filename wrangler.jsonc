@@ -1,0 +1,13 @@
+// Cloudflare Worker for the landing page only (static assets in ./site).
+// The reader app itself is a Node server and is self-hosted; see README.md.
+{
+  "name": "arss-landing",
+  "compatibility_date": "2026-11-01",
+  "routes": [
+    { "pattern": "arss.app", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./site",
+    "not_found_handling": "404-page"
+  }
+}

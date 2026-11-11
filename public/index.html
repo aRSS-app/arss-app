@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aRSS</title>
+<style>
+  :root {
+    --bg:#fff; --fg:#0f1419; --muted:#5b6876; --line:#e6ecf0; --hover:#f6f8fa; --accent:#1d7fe0; --accent-fg:#fff; --danger:#c8102e;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161b; --fg:#e9eef2; --muted:#8b98a5; --line:#273038; --hover:#1a2027; --accent:#4aa3f5; --accent-fg:#0b1117; --danger:#ff6b81; }
+  }
+  * { box-sizing:border-box; }
+  html { scrollbar-gutter:stable; }
+  body { margin:0; font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  a { color:inherit; text-decoration:none; }
+  button, input, select { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+
+  .shell { display:grid; grid-template-columns:280px minmax(0, 600px); justify-content:center; min-height:100vh; }
+
+  /* Sidebar */
+  aside { position:sticky; top:0; height:100vh; overflow:auto; padding:14px 16px 24px; }
+  .brand { font-size:24px; font-weight:800; letter-spacing:-.5px; margin:2px 8px 2px; }
+  .brand span { color:var(--accent); }
+  .strap { color:var(--muted); font-size:13px; margin:0 8px 16px; }
+  form.add { display:grid; gap:8px; margin:0 0 16px; }
+  form.add input, form.add select, .feedmeta select { padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); min-width:0; }
+  .pill { border:0; border-radius:999px; padding:9px 16px; font-weight:700; background:var(--accent); color:var(--accent-fg); }
+  .pill:disabled { opacity:.6; }
+  .ghost { border:1px solid var(--line); border-radius:999px; padding:5px 12px; background:transparent; font-size:13px; }
+  .ghost:hover { background:var(--hover); }
+  .ghost.danger { color:var(--danger); }
+  .feed { display:flex; align-items:center; gap:10px; padding:8px; border-radius:999px; cursor:pointer; }
+  .feed:hover { background:var(--hover); }
+  .feed.active { font-weight:700; }
+  .feed .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .count { color:var(--muted); font-size:12px; font-weight:400; padding-right:6px; }
+  .feedmeta { display:none; font-size:13px; color:var(--muted); padding:4px 8px 12px 46px; }
+  .feed.active + .feedmeta { display:grid; gap:8px; }
+  .feedmeta .actions { display:flex; flex-wrap:wrap; gap:6px; }
+  .err { color:var(--danger); }
+
+  /* Avatars: the site's favicon in a circle, or its initial if it has none */
+  .avatar { flex:none; width:44px; height:44px; border-radius:50%; overflow:hidden; display:grid; place-items:center; background:var(--hover); border:1px solid var(--line); font-weight:700; font-size:18px; color:#fff; }
+  .avatar img { width:100%; height:100%; object-fit:cover; background:#fff; }
+  .avatar.small { width:28px; height:28px; font-size:13px; }
+  .avatar.letter { border-color:transparent; }
+
+  /* Timeline */
+  main { border-inline:1px solid var(--line); min-height:100vh; }
+  .bar { position:sticky; top:0; z-index:2; background:color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); padding:10px 16px; }
+  .bar .row { display:flex; align-items:center; gap:10px; }
+  .bar h1 { font-size:19px; margin:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar input[type=search] { flex:1; min-width:0; padding:8px 14px; border:1px solid var(--line); border-radius:999px; background:var(--hover); }
+  .bar label { color:var(--muted); font-size:13px; white-space:nowrap; display:flex; align-items:center; gap:4px; }
+  .bar .row + .row { margin-top:10px; }
+  #menu { display:none; }
+
+  .post { display:flex; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
+  .post:hover { background:var(--hover); }
+  .post .body { flex:1; min-width:0; }
+  .post .who { display:flex; gap:6px; align-items:baseline; color:var(--muted); font-size:14px; }
+  .post .owner { color:var(--fg); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .post .owner:hover { text-decoration:underline; }
+  .post .host { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:2; }
+  .post time { white-space:nowrap; }
+  .post .avatar { cursor:pointer; }
+  .post h2 { font-size:21px; line-height:1.25; font-weight:800; letter-spacing:-.2px; margin:4px 0 0; overflow-wrap:anywhere; }
+  .post h2 a:hover { text-decoration:underline; }
+  .post p { margin:6px 0 0; overflow-wrap:anywhere; }
+  .post .media { display:block; margin-top:12px; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--hover); }
+  .post .media img { display:block; width:100%; max-height:420px; object-fit:cover; }
+  .post .foot { display:flex; gap:14px; margin-top:10px; color:var(--muted); font-size:13px; }
+  .post .foot a:hover { color:var(--accent); }
+  .post .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); align-self:center; flex:none; }
+  .post.read .dot { visibility:hidden; }
+  .post.read h2 { font-weight:700; color:color-mix(in srgb, var(--fg) 72%, var(--bg)); }
+  .end { padding:28px 16px 60px; text-align:center; color:var(--muted); }
+
+  @media (max-width:880px) {
+    .shell { grid-template-columns:minmax(0, 600px); }
+    main { border-inline:0; }
+    aside { display:none; position:static; height:auto; border-bottom:1px solid var(--line); }
+    body.menu aside { display:block; }
+    #menu { display:inline-block; }
+    .post h2 { font-size:19px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+<aside>
+  <div class="brand">a<span>RSS</span></div>
+  <p class="strap">No algorithms. Just the people you follow, newest first.</p>
+  <form class="add" id="add">
+    <input name="url" type="url" placeholder="Follow a feed URL" required>
+    <select name="interval" aria-label="Check frequency">
+      <option value="hourly">Check hourly</option>
+      <option value="daily" selected>Check daily</option>
+      <option value="weekly">Check weekly</option>
+      <option value="custom">Custom (minutes)...</option>
+    </select>
+    <input name="custom" type="number" min="5" placeholder="Minutes" hidden>
+    <button class="pill">Follow</button>
+  </form>
+  <div id="feeds"></div>
+</aside>
+<main>
+  <div class="bar">
+    <div class="row">
+      <button class="ghost" id="menu" aria-label="Feeds">Feeds</button>
+      <h1 id="heading">Home</h1>
+      <label><input type="checkbox" id="unread"> Unread only</label>
+      <button class="ghost" id="refresh">Refresh</button>
+    </div>
+    <div class="row"><input type="search" id="q" placeholder="Search posts"></div>
+  </div>
+  <div id="items"></div>
+  <div class="end" id="end"></div>
+</main>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const api = async (path, opts = {}) => {
+  const r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body && JSON.stringify(opts.body) });
+  if (r.status === 204) return;
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+};
+const PAGE = 50, POST_LENGTH = 140;
+let feeds = [], current = null, shown = 0;
+
+const label = (m) => m === 60 ? 'hourly' : m === 1440 ? 'daily' : m === 10080 ? 'weekly' : `every ${m} min`;
+const full = (ms) => ms ? new Date(ms).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+// Timeline-style timestamps: 5m, 3h, 2d, then a date.
+const when = (ms) => {
+  const s = (Date.now() - ms) / 1000;
+  if (s < 60) return 'now';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  if (s < 7 * 86400) return Math.floor(s / 86400) + 'd';
+  const d = new Date(ms);
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(d.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }) });
+};
+const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+const safe = (u) => /^https?:\/\//i.test(u || '') ? u : '';
+const plain = (html) => new DOMParser().parseFromString(String(html || ''), 'text/html').body.textContent || '';
+// The first 140 characters, like the good old days.
+const excerpt = (i) => {
+  const text = (i.summary || plain(i.content)).replace(/\s+/g, ' ').trim();
+  if (!text || text === (i.title || '').trim()) return '';
+  const chars = Array.from(text);
+  return chars.length > POST_LENGTH ? chars.slice(0, POST_LENGTH).join('').trimEnd() + '…' : text;
+};
+const hue = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.codePointAt(0)) % 360, 7);
+const letter = (name) => `<span style="background:hsl(${hue(name)} 45% 45%);width:100%;height:100%;display:grid;place-items:center">${esc((Array.from(String(name).replace(/^[^\p{L}\p{N}]+/u, ''))[0] || '?').toUpperCase())}</span>`;
+const avatar = (name, icon, cls = '') => `<span class="avatar ${cls} ${safe(icon) ? '' : 'letter'}" data-name="${esc(name)}">${
+  safe(icon) ? `<img src="${esc(icon)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : letter(name)}</span>`;
+
+async function loadFeeds() {
+  feeds = await api('/feeds');
+  const total = feeds.reduce((n, f) => n + f.unread_count, 0);
+  const active = feeds.find((f) => f.id === current);
+  $('#heading').textContent = active ? (active.title || host(active.url)) : 'Home';
+  $('#feeds').innerHTML =
+    `<div class="feed ${current === null ? 'active' : ''}" data-id=""><span class="avatar small letter"><span style="background:var(--accent);width:100%;height:100%;display:grid;place-items:center">⌂</span></span><span class="name">Home</span><span class="count">${total || ''}</span></div>` +
+    feeds.map((f) => `
+      <div class="feed ${current === f.id ? 'active' : ''}" data-id="${f.id}">${avatar(f.title || host(f.url), f.icon_url, 'small')}<span class="name">${esc(f.title || f.url)}</span><span class="count">${f.unread_count || ''}</span></div>
+      <div class="feedmeta">
+        ${f.last_error ? `<div class="err">${esc(f.last_error)}</div>` : ''}
+        <div>Last checked ${full(f.last_fetched_at)}</div>
+        <div><select data-interval="${f.id}" aria-label="Check frequency">
+          ${[['60','Check hourly'],['1440','Check daily'],['10080','Check weekly']].map(([v, n]) => `<option value="${v}" ${f.interval_minutes == v ? 'selected' : ''}>${n}</option>`).join('')}
+          ${[60,1440,10080].includes(f.interval_minutes) ? '' : `<option selected value="${f.interval_minutes}">Check ${label(f.interval_minutes)}</option>`}
+        </select></div>
+        <div class="actions"><button class="ghost" data-refresh="${f.id}">Refresh</button><button class="ghost" data-readall="${f.id}">Mark read</button><button class="ghost danger" data-del="${f.id}">Unfollow</button></div>
+      </div>`).join('');
+}
+
+const post = (i) => {
+  const name = i.feed_title || host(i.feed_url);
+  const site = host(i.feed_site_url || i.link || i.feed_url);
+  const ts = i.published_at || i.fetched_at;
+  const text = excerpt(i);
+  const link = safe(i.link);
+  return `
+    <article class="post ${i.read ? 'read' : ''}" data-id="${i.id}">
+      <span data-feed="${i.feed_id}" title="Show only ${esc(name)}">${avatar(name, i.feed_icon)}</span>
+      <div class="body">
+        <div class="who"><span class="owner" data-feed="${i.feed_id}">${esc(name)}</span><span class="host">${esc(site)}</span><span>·</span><time datetime="${new Date(ts).toISOString()}" title="${esc(full(ts))}">${when(ts)}</time></div>
+        <h2><a href="${esc(link)}" target="_blank" rel="noopener">${esc(i.title || '(untitled)')}</a></h2>
+        ${text ? `<p>${esc(text)}</p>` : ''}
+        ${safe(i.image) ? `<a class="media" href="${esc(link)}" target="_blank" rel="noopener"><img src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>` : ''}
+        <div class="foot"><span class="dot" title="Unread"></span>${i.author ? `<span>${esc(i.author)}</span>` : ''}<a href="${esc(link)}" target="_blank" rel="noopener">Read on ${esc(host(link) || site)} ↗</a></div>
+      </div>
+    </article>`;
+};
+
+async function loadItems(more = false) {
+  if (!more) shown = 0;
+  const p = new URLSearchParams({ limit: PAGE, offset: shown });
+  if (current) p.set('feed', current);
+  if ($('#unread').checked) p.set('unread', '1');
+  if ($('#q').value) p.set('q', $('#q').value);
+  const items = await api('/items?' + p);
+  const html = items.map(post).join('');
+  if (more) $('#items').insertAdjacentHTML('beforeend', html); else $('#items').innerHTML = html;
+  shown += items.length;
+  $('#end').innerHTML = items.length === PAGE ? '<button class="ghost" id="more">Show older posts</button>'
+    : shown ? "That's everything. You're all caught up." : 'Nothing here yet. Follow a feed to get started.';
+}
+
+const reload = () => Promise.all([loadFeeds(), loadItems()]);
+const show = (id) => { current = id; document.body.classList.remove('menu'); window.scrollTo(0, 0); return reload(); };
+
+// A favicon or featured image that fails to load: fall back to the initial, or drop the image.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img.tagName !== 'IMG') return;
+  const av = img.closest('.avatar');
+  if (av) { av.classList.add('letter'); av.innerHTML = letter(av.dataset.name); }
+  else img.closest('.media')?.remove();
+}, true);
+
+$('#add').elements.interval.onchange = (e) => { $('#add').elements.custom.hidden = e.target.value !== 'custom'; };
+$('#add').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  try {
+    const interval = f.interval.value === 'custom' ? Number(f.custom.value) : f.interval.value;
+    const r = await api('/feeds', { method: 'POST', body: { url: f.url.value, interval } });
+    if (r.result.error) alert('Followed, but the first fetch failed: ' + r.result.error);
+    e.target.reset(); f.custom.hidden = true;
+    await reload();
+  } catch (err) { alert(err.message); } finally { btn.disabled = false; }
+};
+
+$('#feeds').onclick = async (e) => {
+  const t = e.target;
+  if (t.dataset.refresh) { t.disabled = true; await api(`/feeds/${t.dataset.refresh}/refresh`, { method: 'POST' }); return reload(); }
+  if (t.dataset.readall) { await api(`/feeds/${t.dataset.readall}/read-all`, { method: 'POST' }); return reload(); }
+  if (t.dataset.del) { if (confirm('Unfollow this feed and delete its posts?')) { await api(`/feeds/${t.dataset.del}`, { method: 'DELETE' }); show(null); } return; }
+  if (t.tagName === 'SELECT' || t.tagName === 'OPTION') return;
+  const row = t.closest('.feed');
+  if (row) show(row.dataset.id ? Number(row.dataset.id) : null);
+};
+$('#feeds').onchange = async (e) => {
+  if (e.target.dataset.interval) await api(`/feeds/${e.target.dataset.interval}`, { method: 'PATCH', body: { interval: Number(e.target.value) } });
+};
+$('#items').onclick = async (e) => {
+  const feed = e.target.closest('[data-feed]');
+  if (feed) return show(Number(feed.dataset.feed));
+  if (!e.target.closest('a')) return;
+  const a = e.target.closest('article');
+  if (!a.classList.contains('read')) { a.classList.add('read'); await api(`/items/${a.dataset.id}/read`, { method: 'POST', body: {} }); loadFeeds(); }
+};
+$('#end').onclick = (e) => { if (e.target.id === 'more') { e.target.disabled = true; loadItems(true); } };
+$('#menu').onclick = () => { document.body.classList.toggle('menu'); window.scrollTo(0, 0); };
+$('#refresh').onclick = async (e) => { e.target.disabled = true; try { await api('/refresh', { method: 'POST' }); await reload(); } finally { e.target.disabled = false; } };
+$('#unread').onchange = () => loadItems();
+let t; $('#q').oninput = () => { clearTimeout(t); t = setTimeout(() => loadItems(), 250); };
+reload();
+</script>
+</body>
+</html>
