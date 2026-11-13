@@ -1,13 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { listFeeds, listItems } from './db.js';
+import { listFeeds, listItems, setRead, setSaved } from './db.js';
 
 const text = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
 const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
 
 const present = (i, full) => ({
   id: i.id, feed: i.feed_title, title: i.title, link: i.link, author: i.author,
-  published: iso(i.published_at), read: !!i.read,
+  published: iso(i.published_at), read: !!i.read, saved: !!i.saved_at,
   ...(full ? { content: i.content || i.summary } : { summary: (i.summary || '').slice(0, 400) }),
 });
 
@@ -21,10 +21,11 @@ export function buildMcpServer(db) {
   }))));
 
   server.registerTool('get_items', {
-    description: 'Get recent items across all feeds (newest first). Filter by feed, unread, date or text.',
+    description: 'Get recent items across all feeds (newest first). Filter by feed, unread, saved, date or text.',
     inputSchema: {
       feed_id: z.number().int().optional(),
       unread_only: z.boolean().optional(),
+      saved_only: z.boolean().optional().describe('Only items the reader has saved (bookmarked)'),
       since: z.string().optional().describe('ISO date; only items published on/after this'),
       search: z.string().optional(),
       limit: z.number().int().min(1).max(200).optional(),
@@ -33,7 +34,7 @@ export function buildMcpServer(db) {
   }, async (a) => {
     const since = a.since ? Date.parse(a.since) : undefined;
     if (a.since && Number.isNaN(since)) return { isError: true, ...text({ error: 'invalid since date' }) };
-    const items = listItems(db, { feedId: a.feed_id, unread: a.unread_only, search: a.search, since, limit: a.limit ?? 30 });
+    const items = listItems(db, { feedId: a.feed_id, unread: a.unread_only, saved: a.saved_only, search: a.search, since, limit: a.limit ?? 30 });
     return text(items.map((i) => present(i, a.include_content)));
   });
 
@@ -49,9 +50,16 @@ export function buildMcpServer(db) {
     description: 'Mark items as read (e.g. after summarising them).',
     inputSchema: { ids: z.array(z.number().int()).min(1).max(500) },
   }, async ({ ids }) => {
-    const stmt = db.prepare('UPDATE items SET read = 1 WHERE id = ?');
-    for (const id of ids) stmt.run(id);
+    for (const id of ids) setRead(db, id);
     return text({ marked: ids.length });
+  });
+
+  server.registerTool('save_items', {
+    description: 'Save (bookmark) items so they appear in the Saved view, or pass saved: false to remove them.',
+    inputSchema: { ids: z.array(z.number().int()).min(1).max(500), saved: z.boolean().optional() },
+  }, async ({ ids, saved = true }) => {
+    for (const id of ids) setSaved(db, id, saved);
+    return text({ [saved ? 'saved' : 'unsaved']: ids.length });
   });
   return server;
 }

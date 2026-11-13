@@ -29,6 +29,7 @@ This gives us a chance to tap into data structures that already exist, where peo
 
 - A single chronological timeline of everything you subscribe to: blogs, podcasts, YouTube channels, newsletters, anything with an RSS or Atom feed
 - Per-feed views, search and unread tracking
+- Save posts to come back to, and mark them read when you choose
 - A fetch schedule per feed (hourly, daily, weekly or custom minutes)
 - An [MCP](https://modelcontextprotocol.io/) service, so your agent of choice can search your feeds and find content you read and have since forgotten
 - One small Node server and a SQLite file, with no accounts and no native dependencies. Run it locally, or deploy it somewhere you trust to keep it safe
@@ -67,7 +68,7 @@ It's safe to re-run, as feeds you already have are skipped. The running server f
 
 ## Use it with your agent (MCP)
 
-aRSS exposes `list_feeds`, `get_items`, `get_item` and `mark_read` as MCP tools, over stdio for the same machine or over HTTP for remote clients. Any MCP-capable agent can connect. For example, with Claude Code on the same machine:
+aRSS exposes `list_feeds`, `get_items`, `get_item`, `mark_read` and `save_items` as MCP tools, over stdio for the same machine or over HTTP for remote clients. Any MCP-capable agent can connect. For example, with Claude Code on the same machine:
 
     claude mcp add arss -- node /path/to/arss-app/src/mcp.js
 
@@ -78,7 +79,9 @@ See [APP.md](APP.md) for the HTTP endpoint, tokens, keeping the server running w
 - `src/server.js` - web UI, JSON API and per-feed scheduler
 - `src/fetcher.js`, `src/db.js` - feed fetching and SQLite storage
 - `src/mcp.js`, `src/mcp-http.js`, `src/mcp-tools.js` - MCP server (stdio and HTTP)
+- `src/publishing.js`, `src/publishers/` - connecting your own site, for publishing replies and reposts
 - `public/` - the reader UI
+- `docs/` - guides, starting with [publishing and webmentions](docs/webmentions.md)
 - `seed/` - example feeds
 - `site/` - the project landing page
 

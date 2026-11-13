@@ -1,7 +1,9 @@
 import express from 'express';
-import { openDb, listFeeds, listItems, parseInterval } from './db.js';
+import { openDb, listFeeds, listItems, parseInterval, setRead, setSaved, savedCount } from './db.js';
 import { fetchFeed, runDue } from './fetcher.js';
 import { mountMcp } from './mcp-http.js';
+import { getPublisher, savePublisher, removePublisher, adapter, view } from './publishing.js';
+import { checkSite } from './microformats.js';
 
 const db = openDb();
 const app = express();
@@ -53,6 +55,7 @@ app.get('/api/items', (req, res) => {
   res.json(listItems(db, {
     feedId: q.feed ? Number(q.feed) : undefined,
     unread: q.unread === '1',
+    saved: q.saved === '1',
     search: q.q || undefined,
     afterId: q.after ? Number(q.after) : undefined,
     limit: q.limit,
@@ -64,14 +67,33 @@ app.get('/api/items', (req, res) => {
 app.get('/api/latest', (req, res) => res.json({ id: db.prepare('SELECT MAX(id) AS id FROM items').get().id ?? 0 }));
 
 app.post('/api/items/:id/read', (req, res) => {
-  db.prepare('UPDATE items SET read = ? WHERE id = ?').run(req.body?.read === false ? 0 : 1, req.params.id);
+  setRead(db, req.params.id, req.body?.read !== false);
   res.status(204).end();
 });
+
+// Save is a private bookmark. Send { saved: false } to remove it.
+app.post('/api/items/:id/save', (req, res) => {
+  setSaved(db, req.params.id, req.body?.saved !== false);
+  res.status(204).end();
+});
+
+app.get('/api/saved', (req, res) => res.json({ count: savedCount(db) }));
 
 app.post('/api/feeds/:id/read-all', (req, res) => {
   db.prepare('UPDATE items SET read = 1 WHERE feed_id = ?').run(req.params.id);
   res.status(204).end();
 });
+
+// Publishing: where your replies and reposts go (your own site). The token is never sent back.
+const publisher = () => { const c = getPublisher(db); if (!c?.connected) throw new Error('Connect a site first'); return c; };
+app.get('/api/publisher', (req, res) => res.json(view(getPublisher(db))));
+app.put('/api/publisher', wrap(async (req, res) => {
+  const { config, ok, checks } = await savePublisher(db, req.body);
+  res.json({ ...view(config), ok, checks });
+}));
+app.delete('/api/publisher', (req, res) => { removePublisher(db); res.status(204).end(); });
+app.post('/api/publisher/template', wrap(async (req, res) => { const c = publisher(); res.json(await adapter(c).installTemplate(c)); }));
+app.post('/api/publisher/check-site', wrap(async (req, res) => res.json(await checkSite(req.body.url))));
 
 // Scheduler: check once a minute for feeds whose own interval has elapsed.
 let running = false;
