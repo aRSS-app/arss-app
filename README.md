@@ -79,7 +79,9 @@ See [APP.md](APP.md) for the HTTP endpoint, tokens, keeping the server running w
 - `src/server.js` - web UI, JSON API and per-feed scheduler
 - `src/fetcher.js`, `src/db.js` - feed fetching and SQLite storage
 - `src/mcp.js`, `src/mcp-http.js`, `src/mcp-tools.js` - MCP server (stdio and HTTP)
+- `src/publishing.js`, `src/publishers/` - connecting your own site, for publishing replies and reposts
 - `public/` - the reader UI
+- `docs/` - guides, starting with [publishing and webmentions](docs/webmentions.md)
 - `seed/` - example feeds
 - `site/` - the project landing page
 

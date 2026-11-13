@@ -129,3 +129,101 @@ test('save and mark as read are explicit, per item', async () => {
   assert.equal(listItems(db, { unread: true }).length, 2);
   assert.equal(setSaved(db, 999), false);
 });
+
+// A stand-in for the GitHub API: one repo, with a writable or read-only token.
+async function fakeGitHub({ writable = true, config = 'export default () => ({ dir: { input: "src", includes: "_layouts" } });' } = {}) {
+  const calls = [];
+  const srv = createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      const path = req.url.replace(/\?.*/, '');
+      calls.push({ method: req.method, path, auth: req.headers.authorization, body: body ? JSON.parse(body) : null });
+      const send = (status, json) => { res.statusCode = status; res.end(JSON.stringify(json)); };
+      if (req.headers.authorization !== 'Bearer good') return send(401, { message: 'Bad credentials' });
+      if (!path.startsWith('/repos/me/site')) return send(404, { message: 'Not Found' });
+      const rest = path.slice('/repos/me/site'.length);
+      if (req.method !== 'GET' && !writable) return send(403, { message: 'Resource not accessible by personal access token' });
+      if (rest === '') return send(200, { full_name: 'me/site', default_branch: 'main' });
+      if (rest === '/branches/main') return send(200, { name: 'main' });
+      if (rest === '/git/blobs') return send(201, { sha: 'b1' });
+      if (rest === '/contents/') return send(200, [{ name: 'eleventy.config.js', path: 'eleventy.config.js' }]);
+      if (rest === '/contents/eleventy.config.js') return send(200, { content: Buffer.from(config).toString('base64') });
+      if (rest === '/git/ref/heads/main') return send(200, { object: { sha: 'abc' } });
+      if (rest === '/git/refs') return send(201, {});
+      if (req.method === 'PUT' && rest.startsWith('/contents/')) return send(201, {});
+      send(404, { message: 'Not Found' });
+    });
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  process.env.GITHUB_API = `http://127.0.0.1:${srv.address().port}`;
+  return { calls, close: () => { srv.close(); delete process.env.GITHUB_API; } };
+}
+
+test('connecting a site checks access, reads the 11ty config and keeps the token private', async () => {
+  const { savePublisher, getPublisher, publicConfig, view, adapter } = await import('../src/publishing.js');
+  const gh = await fakeGitHub();
+  const db = openDb(':memory:');
+  const form = { repo: 'https://github.com/me/site.git', token: 'good', siteUrl: 'https://example.com/', author: 'Me' };
+  const r = await savePublisher(db, form);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.checks.map((c) => c.ok), [true, true, true, true]);
+  assert.deepEqual([r.config.repo, r.config.branch, r.config.folder, r.config.includes, r.config.urlPath, r.config.siteUrl],
+    ['me/site', 'main', 'src/replies', 'src/_layouts', '/replies/', 'https://example.com']);
+
+  const pub = publicConfig(getPublisher(db));
+  assert.equal(pub.token, undefined);
+  assert.equal(pub.hasToken, true);
+  assert.ok(!JSON.stringify(view(getPublisher(db))).includes('good'));
+
+  // Saving again without retyping the token keeps it, but not if the repository changes.
+  assert.equal((await savePublisher(db, { ...form, token: '', baseLayout: 'base.njk' })).ok, true);
+  await assert.rejects(savePublisher(db, { ...form, token: '', repo: 'me/other' }), /token is needed/);
+
+  const config = getPublisher(db);
+  const files = adapter(config).templateFiles(config);
+  assert.deepEqual(files.map((f) => f.path), ['src/_layouts/arss-post.njk', 'src/replies/replies.11tydata.json']);
+  assert.match(files[0].content, /^---\nlayout: base\.njk\n---/);
+  for (const cls of ['h-entry', 'u-in-reply-to', 'u-repost-of', 'e-content', 'p-author h-card', 'u-url', 'dt-published']) assert.ok(files[0].content.includes(cls), cls);
+  assert.equal(JSON.parse(files[1].content).permalink, '/replies/{{ page.fileSlug }}/');
+
+  const done = await adapter(config).installTemplate(config);
+  assert.equal(done.url, 'https://github.com/me/site/compare/main...arss-webmentions?expand=1');
+  const puts = gh.calls.filter((c) => c.method === 'PUT');
+  assert.deepEqual(puts.map((c) => c.path), files.map((f) => '/repos/me/site/contents/' + f.path));
+  assert.ok(puts.every((c) => c.body.branch === 'arss-webmentions')); // never the live branch
+  gh.close();
+});
+
+test('connection problems are explained, and settings are still saved for a retry', async () => {
+  const { savePublisher, getPublisher, normalise } = await import('../src/publishing.js');
+  const form = { repo: 'me/site', siteUrl: 'https://example.com' };
+  let gh = await fakeGitHub({ writable: false });
+  const db = openDb(':memory:');
+  const ro = await savePublisher(db, { ...form, token: 'good' });
+  assert.equal(ro.ok, false);
+  assert.match(ro.checks.at(-1).detail, /Contents: Read and write/);
+  assert.equal(getPublisher(db).connected, false);
+  assert.equal(getPublisher(db).folder, ''); // not guessed until the site's config can be read
+  assert.match((await savePublisher(db, { ...form, token: 'bad' })).checks[0].detail, /rejected the token/);
+  assert.match((await savePublisher(db, { ...form, token: 'good', repo: 'me/nope' })).checks[0].detail, /Can't see me\/nope/);
+  assert.match((await savePublisher(db, { ...form, token: 'good', repo: 'me/site', branch: 'dev' })).checks[1].detail, /default branch is main/);
+  gh.close();
+
+  assert.throws(() => normalise({ ...form, token: 't', repo: 'nope' }), /owner\/name/);
+  assert.throws(() => normalise({ ...form, token: 't', siteUrl: 'example' }), /full URL/);
+  assert.throws(() => normalise({ ...form, token: 't', folder: '../etc' }), /\.\./);
+});
+
+test('microformat check on a published page', async () => {
+  const { checkPage } = await import('../src/microformats.js');
+  const good = checkPage(`<article class="post h-entry"><a class='u-in-reply-to' href="x">x</a><div class=e-content>hi</div>
+    <a class="p-author h-card">Me</a><a class="u-url"><time class="dt-published"></time></a></article>`);
+  assert.equal(good.ok, true);
+  assert.ok(good.checks.every((c) => c.ok));
+  const bare = checkPage('<article class="h-entry-ish"><p class="e-content">hi</p></article>');
+  assert.equal(bare.ok, false);
+  assert.deepEqual(bare.checks.filter((c) => !c.ok && c.required).map((c) => c.name), ['Post wrapper', 'Link to the original post']);
+  const noAuthor = checkPage('<div class="h-entry"><a class="u-repost-of"></a><p class="e-content"></p></div>');
+  assert.equal(noAuthor.ok, true); // author, permalink and date are recommended, not required
+});

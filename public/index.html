@@ -84,6 +84,31 @@
   .post .acts [aria-pressed=true] { color:var(--accent); }
   .post .acts [data-act=save][aria-pressed=true] svg { fill:currentColor; }
   .post.read h2 { font-weight:700; color:color-mix(in srgb, var(--fg) 72%, var(--bg)); }
+  /* Publishing settings */
+  body.settings .bar .row + .row, body.settings .bar label, body.settings #refresh, body.settings #end { display:none; }
+  #settings { padding:6px 16px 60px; }
+  #settings h2 { font-size:17px; margin:26px 0 4px; }
+  #settings p { margin:6px 0; }
+  #settings .hint, #settings small { color:var(--muted); font-size:13px; }
+  #settings a { color:var(--accent); }
+  #settings form { display:grid; gap:14px; margin-top:14px; }
+  #settings label { display:grid; gap:4px; font-weight:600; font-size:14px; }
+  #settings label small { font-weight:400; }
+  #settings input, #settings select { padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); min-width:0; width:100%; font-weight:400; }
+  #settings .two { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
+  #settings .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  #settings .ghost { padding:8px 14px; }
+  .checks { list-style:none; margin:12px 0 0; padding:0; display:grid; gap:8px; }
+  .checks li { display:grid; grid-template-columns:20px 1fr; gap:8px; font-size:14px; }
+  .checks .mark { font-weight:800; }
+  .checks .ok .mark { color:#1a8a4a; } .checks .bad .mark { color:var(--danger); } .checks .warn .mark { color:var(--muted); }
+  .checks span span { display:block; color:var(--muted); }
+  #settings details { border:1px solid var(--line); border-radius:12px; margin-top:10px; overflow:hidden; }
+  #settings summary { padding:10px 12px; cursor:pointer; font-weight:600; font-size:14px; overflow-wrap:anywhere; }
+  #settings summary small { display:block; font-weight:400; }
+  #settings pre { margin:0; padding:12px; border-top:1px solid var(--line); background:var(--hover); font-size:12.5px; overflow:auto; }
+  #settings .copy { margin:0 12px 12px; }
+  .sep { height:1px; background:var(--line); margin:10px 8px; }
   .end { padding:28px 16px 60px; text-align:center; color:var(--muted); }
   /* "New posts" pill: floats under the bar until clicked, so the timeline never moves on its own. */
   #fresh { position:absolute; top:100%; left:0; right:0; height:0; display:flex; justify-content:center; }
@@ -96,6 +121,7 @@
     aside { display:none; position:static; height:auto; border-bottom:1px solid var(--line); }
     body.menu aside { display:block; }
     #menu { display:inline-block; }
+    #settings .two { grid-template-columns:1fr; }
     .post h2 { font-size:19px; }
   }
 </style>
@@ -130,6 +156,7 @@
     <div id="fresh" hidden><button class="pill" id="freshBtn"></button></div>
   </div>
   <div id="items"></div>
+  <section id="settings" hidden></section>
   <div class="end" id="end"></div>
 </main>
 </div>
@@ -180,7 +207,7 @@ async function loadFeeds() {
   [feeds, saved] = await Promise.all([api('/feeds'), api('/saved').then((r) => r.count, () => 0)]);
   const total = feeds.reduce((n, f) => n + f.unread_count, 0);
   const active = feeds.find((f) => f.id === current);
-  $('#heading').textContent = active ? (active.title || host(active.url)) : current === 'saved' ? 'Saved' : 'Home';
+  $('#heading').textContent = active ? (active.title || host(active.url)) : current === 'saved' ? 'Saved' : current === 'publishing' ? 'Publishing' : 'Home';
   $('#feeds').innerHTML =
     `<div class="feed ${current === null ? 'active' : ''}" data-id=""><span class="avatar small letter"><span style="background:var(--accent);width:100%;height:100%;display:grid;place-items:center">⌂</span></span><span class="name">Home</span><span class="count">${total || ''}</span></div>` +
     `<div class="feed ${current === 'saved' ? 'active' : ''}" data-id="saved"><span class="avatar small letter"><span style="background:var(--accent);width:100%;height:100%;display:grid;place-items:center">★</span></span><span class="name">Saved</span><span class="count">${saved || ''}</span></div>` +
@@ -194,7 +221,8 @@ async function loadFeeds() {
           ${[60,1440,10080].includes(f.interval_minutes) ? '' : `<option selected value="${f.interval_minutes}">Check ${label(f.interval_minutes)}</option>`}
         </select></div>
         <div class="actions"><button class="ghost" data-refresh="${f.id}">Refresh</button><button class="ghost" data-readall="${f.id}">Mark read</button><button class="ghost danger" data-del="${f.id}">Unfollow</button></div>
-      </div>`).join('');
+      </div>`).join('') +
+    `<div class="sep"></div><div class="feed ${current === 'publishing' ? 'active' : ''}" data-id="publishing"><span class="avatar small letter"><span style="background:var(--muted);width:100%;height:100%;display:grid;place-items:center">✎</span></span><span class="name">Publishing</span></div>`;
 }
 
 const ICONS = { save: '<path d="M6 3h12v18l-6-4.5L6 21z"/>', read: '<path d="M4 12.5l5 5L20 6.5"/>' };
@@ -222,7 +250,55 @@ const post = (i) => {
     </article>`;
 };
 
+// Publishing settings: connect the site your replies and reposts will be published to.
+const GUIDE = 'https://github.com/aRSS-app/arss-app/blob/main/docs/webmentions.md';
+const checkList = (checks) => `<ul class="checks">${checks.map((c) => `<li class="${c.ok ? 'ok' : c.required === false ? 'warn' : 'bad'}"><span class="mark">${c.ok ? '✓' : c.required === false ? '–' : '✕'}</span><span><strong>${esc(c.name)}</strong><span>${esc(c.detail)}</span></span></li>`).join('')}</ul>`;
+const field = (name, label, value, hint, attrs = '') => `<label>${label}<input name="${name}" value="${esc(value ?? '')}" ${attrs}>${hint ? `<small>${hint}</small>` : ''}</label>`;
+function renderPublishing({ config: c, publishers, files }, result = '') {
+  const v = c || {};
+  $('#settings').innerHTML = `
+    <p>Comments and reposts are published on <strong>your own site</strong>, then aRSS lets the original author know with a <a href="https://indieweb.org/Webmention" target="_blank" rel="noopener">webmention</a>. Connect your site here first. <a href="${GUIDE}" target="_blank" rel="noopener">Read the guide ↗</a></p>
+    <h2>1. Connect your site</h2>
+    <form id="pubForm">
+      <label>Where is your site kept?<select name="type">${Object.entries(publishers).map(([k, n]) => `<option value="${esc(k)}" ${v.type === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+      <div class="two">
+        ${field('repo', 'Repository', v.repo, 'As owner/name', 'required placeholder="you/your-site" autocomplete="off"')}
+        ${field('branch', 'Branch', v.branch || 'main', 'The branch your site builds from')}
+      </div>
+      ${field('token', 'Access token', '', `A fine-grained GitHub token with "Contents: Read and write" on this one repository. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create one ↗</a>`, `type="password" autocomplete="off" ${v.hasToken ? 'placeholder="Saved. Leave blank to keep it"' : 'required'}`)}
+      <div class="two">
+        ${field('siteUrl', 'Site address', v.siteUrl, '', 'required type="url" placeholder="https://example.com"')}
+        ${field('author', 'Your name', v.author, 'Shown on your replies')}
+      </div>
+      <div class="two">
+        ${field('folder', 'Posts folder', v.folder, 'Where replies and reposts are saved', 'placeholder="Work it out for me"')}
+        ${field('includes', 'Includes folder', v.includes, 'Where your 11ty layouts live', 'placeholder="Work it out for me"')}
+      </div>
+      <div class="two">
+        ${field('urlPath', 'Address on your site', v.urlPath, 'For example /replies/', 'placeholder="/replies/"')}
+        ${field('baseLayout', 'Your main layout', v.baseLayout, 'Optional, so posts look like the rest of your site', 'placeholder="base.njk"')}
+      </div>
+      <div class="actions"><button class="pill">${c ? 'Save and test' : 'Connect'}</button>${c ? '<button type="button" class="ghost danger" id="pubRemove">Disconnect</button>' : ''}</div>
+    </form>
+    <div id="pubResult">${result || (c ? checkList([{ name: c.connected ? 'Connected' : 'Not connected yet', ok: c.connected, detail: c.connected ? `aRSS can write to ${c.repo}.` : 'Press "Save and test" to see what needs fixing.' }]) : '')}</div>
+    ${c?.connected ? `
+    <h2>2. Prepare your site</h2>
+    <p class="hint">Your site needs these two files so your posts carry the labels (microformats) other sites read. Copy them in yourself, or let aRSS add them to a separate <code>arss-webmentions</code> branch for you to review. Nothing changes on your live site until you merge it.</p>
+    ${files.map((f, n) => `<details><summary>${esc(f.path)}<small>${esc(f.about)}</small></summary><pre>${esc(f.content)}</pre><button type="button" class="ghost copy" data-copy="${n}">Copy</button></details>`).join('')}
+    <div class="actions"><button class="ghost" id="pubTemplate">Add them to a branch for me</button></div>
+    <div id="tplResult"></div>
+    <h2>3. Check a published post</h2>
+    <p class="hint">Once a reply or repost is live on your site, paste its address to confirm other sites can read it.</p>
+    <form id="siteForm">${field('url', 'Post address', '', '', `required type="url" placeholder="${esc(v.siteUrl + v.urlPath)}your-post/"`)}<div class="actions"><button class="ghost">Check</button></div></form>
+    <div id="siteResult"></div>` : ''}`;
+}
+async function loadPublishing() { renderPublishing(await api('/publisher')); }
+
 async function loadItems(more = false) {
+  const settings = current === 'publishing';
+  document.body.classList.toggle('settings', settings);
+  $('#settings').hidden = !settings;
+  if (settings) { $('#items').innerHTML = ''; showFresh(0, 0); return loadPublishing(); }
   if (!more) { shown = 0; latest = await api('/latest').then((r) => r.id, () => null); showFresh(0, 0); }
   const p = new URLSearchParams({ limit: PAGE, offset: shown });
   if (feedId()) p.set('feed', current);
@@ -250,7 +326,7 @@ async function checkFresh() {
   try {
     const all = (await api(`/items?after=${latest}&limit=${NEW_MAX}`)).length;
     let here = all;
-    if (current === 'saved') here = 0; // new posts are never saved yet
+    if (typeof current === 'string') here = 0; // new posts are never saved yet
     else if (all && (current || $('#q').value)) {
       const p = new URLSearchParams({ after: latest, limit: NEW_MAX });
       if (feedId()) p.set('feed', current);
@@ -294,7 +370,7 @@ $('#feeds').onclick = async (e) => {
   if (t.dataset.del) { if (confirm('Unfollow this feed and delete its posts?')) { await api(`/feeds/${t.dataset.del}`, { method: 'DELETE' }); show(null); } return; }
   if (t.tagName === 'SELECT' || t.tagName === 'OPTION') return;
   const row = t.closest('.feed');
-  if (row) show(row.dataset.id === 'saved' ? 'saved' : row.dataset.id ? Number(row.dataset.id) : null);
+  if (row) show(/^\d+$/.test(row.dataset.id) ? Number(row.dataset.id) : row.dataset.id || null);
 };
 $('#feeds').onchange = async (e) => {
   if (e.target.dataset.interval) await api(`/feeds/${e.target.dataset.interval}`, { method: 'PATCH', body: { interval: Number(e.target.value) } });
@@ -324,6 +400,34 @@ async function setRead(a, read) {
   paint(a.querySelector('[data-act=read]'), read, read ? 'Read' : 'Mark as read');
   loadFeeds();
 }
+$('#settings').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    if (e.target.id === 'pubForm') {
+      const r = await api('/publisher', { method: 'PUT', body });
+      renderPublishing(r, checkList(r.checks));
+    } else {
+      const r = await api('/publisher/check-site', { method: 'POST', body });
+      $('#siteResult').innerHTML = checkList(r.checks) + `<p class="hint">${r.ok ? 'This post is ready for webmentions.' : 'Fix the items marked ✕, publish again, then re-check.'}</p>`;
+    }
+  } catch (err) { $(e.target.id === 'pubForm' ? '#pubResult' : '#siteResult').innerHTML = checkList([{ name: 'That did not work', ok: false, detail: err.message }]); }
+  finally { btn.disabled = false; }
+});
+$('#settings').addEventListener('click', async (e) => {
+  const t = e.target;
+  if (t.dataset.copy) { await navigator.clipboard.writeText(t.previousElementSibling.textContent); t.textContent = 'Copied'; }
+  if (t.id === 'pubRemove' && confirm('Disconnect your site? The saved token is deleted. Nothing on your site changes.')) { await api('/publisher', { method: 'DELETE' }); loadPublishing(); }
+  if (t.id === 'pubTemplate') {
+    t.disabled = true;
+    try {
+      const r = await api('/publisher/template', { method: 'POST' });
+      $('#tplResult').innerHTML = checkList([{ name: 'Added to the ' + r.branch + ' branch', ok: true, detail: r.files.join(', ') }]) + `<p><a href="${esc(r.url)}" target="_blank" rel="noopener">Review and merge on GitHub ↗</a></p>`;
+    } catch (err) { $('#tplResult').innerHTML = checkList([{ name: 'Could not add the files', ok: false, detail: err.message }]); }
+    finally { t.disabled = false; }
+  }
+});
 $('#end').onclick = (e) => { if (e.target.id === 'more') { e.target.disabled = true; loadItems(true); } };
 $('#menu').onclick = () => { document.body.classList.toggle('menu'); window.scrollTo(0, 0); };
 $('#refresh').onclick = async (e) => { e.target.disabled = true; try { await api('/refresh', { method: 'POST' }); await reload(); } finally { e.target.disabled = false; } };

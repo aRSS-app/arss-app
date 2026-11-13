@@ -36,6 +36,7 @@ export function openDb(path = DB_PATH) {
       UNIQUE (feed_id, guid)
     );
     CREATE INDEX IF NOT EXISTS items_published ON items(published_at DESC);
+    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
   // Columns added after the first release.
   const addColumn = (table, col, type = 'TEXT') => {
@@ -99,4 +100,15 @@ export function setSaved(db, id, saved = true, now = Date.now()) {
 
 export function savedCount(db) {
   return db.prepare('SELECT COUNT(*) AS n FROM items WHERE saved_at IS NOT NULL').get().n;
+}
+
+// Small key/value store for app settings. Values are JSON; setting null removes the key.
+export function getSetting(db, key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? JSON.parse(row.value) : null;
+}
+
+export function setSetting(db, key, value) {
+  if (value == null) db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+  else db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, JSON.stringify(value));
 }
