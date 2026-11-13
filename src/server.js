@@ -1,5 +1,5 @@
 import express from 'express';
-import { openDb, listFeeds, listItems, parseInterval } from './db.js';
+import { openDb, listFeeds, listItems, parseInterval, setRead, setSaved, savedCount } from './db.js';
 import { fetchFeed, runDue } from './fetcher.js';
 import { mountMcp } from './mcp-http.js';
 
@@ -53,6 +53,7 @@ app.get('/api/items', (req, res) => {
   res.json(listItems(db, {
     feedId: q.feed ? Number(q.feed) : undefined,
     unread: q.unread === '1',
+    saved: q.saved === '1',
     search: q.q || undefined,
     afterId: q.after ? Number(q.after) : undefined,
     limit: q.limit,
@@ -64,9 +65,17 @@ app.get('/api/items', (req, res) => {
 app.get('/api/latest', (req, res) => res.json({ id: db.prepare('SELECT MAX(id) AS id FROM items').get().id ?? 0 }));
 
 app.post('/api/items/:id/read', (req, res) => {
-  db.prepare('UPDATE items SET read = ? WHERE id = ?').run(req.body?.read === false ? 0 : 1, req.params.id);
+  setRead(db, req.params.id, req.body?.read !== false);
   res.status(204).end();
 });
+
+// Save is a private bookmark. Send { saved: false } to remove it.
+app.post('/api/items/:id/save', (req, res) => {
+  setSaved(db, req.params.id, req.body?.saved !== false);
+  res.status(204).end();
+});
+
+app.get('/api/saved', (req, res) => res.json({ count: savedCount(db) }));
 
 app.post('/api/feeds/:id/read-all', (req, res) => {
   db.prepare('UPDATE items SET read = 1 WHERE feed_id = ?').run(req.params.id);

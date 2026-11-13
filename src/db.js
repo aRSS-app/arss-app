@@ -38,11 +38,12 @@ export function openDb(path = DB_PATH) {
     CREATE INDEX IF NOT EXISTS items_published ON items(published_at DESC);
   `);
   // Columns added after the first release.
-  const addColumn = (table, col) => {
-    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
+  const addColumn = (table, col, type = 'TEXT') => {
+    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
   };
   addColumn('feeds', 'icon_url');
   addColumn('items', 'image');
+  addColumn('items', 'saved_at', 'INTEGER'); // when the post was saved (bookmarked), or NULL
   return db;
 }
 
@@ -62,11 +63,12 @@ export function listFeeds(db) {
     FROM feeds f ORDER BY COALESCE(f.title, f.url) COLLATE NOCASE`).all();
 }
 
-export function listItems(db, { feedId, unread, search, since, afterId, limit = 50, offset = 0 } = {}) {
+export function listItems(db, { feedId, unread, saved, search, since, afterId, limit = 50, offset = 0 } = {}) {
   const where = [];
   const args = [];
   if (feedId) { where.push('i.feed_id = ?'); args.push(feedId); }
   if (unread) where.push('i.read = 0');
+  if (saved) where.push('i.saved_at IS NOT NULL');
   if (afterId) { where.push('i.id > ?'); args.push(Number(afterId)); }
   if (since) { where.push('COALESCE(i.published_at, i.fetched_at) >= ?'); args.push(since); }
   if (search) {
@@ -77,10 +79,24 @@ export function listItems(db, { feedId, unread, search, since, afterId, limit = 
   const sql = `
     SELECT i.id, i.feed_id, f.title AS feed_title, i.title, i.link, i.author, i.summary, i.content, i.image,
            f.icon_url AS feed_icon, f.site_url AS feed_site_url, f.url AS feed_url,
-           i.published_at, i.fetched_at, i.read
+           i.published_at, i.fetched_at, i.read, i.saved_at
     FROM items i JOIN feeds f ON f.id = i.feed_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY COALESCE(i.published_at, i.fetched_at) DESC, i.id DESC
     LIMIT ? OFFSET ?`;
   return db.prepare(sql).all(...args, Math.min(Number(limit) || 50, 500), Number(offset) || 0);
+}
+
+export function setRead(db, id, read = true) {
+  return db.prepare('UPDATE items SET read = ? WHERE id = ?').run(read ? 1 : 0, id).changes > 0;
+}
+
+// Saving is a bookmark: it keeps the time it was saved, and saving twice doesn't move it.
+export function setSaved(db, id, saved = true, now = Date.now()) {
+  return db.prepare(`UPDATE items SET saved_at = ${saved ? 'COALESCE(saved_at, ?)' : 'NULL'} WHERE id = ?`)
+    .run(...(saved ? [now, id] : [id])).changes > 0;
+}
+
+export function savedCount(db) {
+  return db.prepare('SELECT COUNT(*) AS n FROM items WHERE saved_at IS NOT NULL').get().n;
 }

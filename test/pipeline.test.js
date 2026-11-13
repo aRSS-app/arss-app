@@ -107,3 +107,25 @@ test('afterId returns only items added since', () => {
   add(2);
   assert.deepEqual(listItems(db, { afterId: first }).map((i) => i.title), ['Post 2']);
 });
+
+test('save and mark as read are explicit, per item', async () => {
+  const { setRead, setSaved, savedCount } = await import('../src/db.js');
+  const db = openDb(':memory:');
+  const feed = db.prepare('INSERT INTO feeds (url, created_at) VALUES (?, ?)').run('https://example.com/feed', 1).lastInsertRowid;
+  const add = (n) => db.prepare('INSERT INTO items (feed_id, guid, title, fetched_at) VALUES (?, ?, ?, ?)').run(feed, 'g' + n, 'Post ' + n, n).lastInsertRowid;
+  const [a, b] = [add(1), add(2)];
+
+  assert.equal(setSaved(db, a, true, 100), true);
+  setSaved(db, a, true, 200); // saving again keeps the original time
+  assert.equal(listItems(db, {}).find((i) => i.id === a).saved_at, 100);
+  assert.deepEqual(listItems(db, { saved: true }).map((i) => i.title), ['Post 1']);
+  assert.equal(savedCount(db), 1);
+  setSaved(db, a, false);
+  assert.equal(savedCount(db), 0);
+
+  setRead(db, b);
+  assert.deepEqual(listItems(db, { unread: true }).map((i) => i.title), ['Post 1']);
+  setRead(db, b, false);
+  assert.equal(listItems(db, { unread: true }).length, 2);
+  assert.equal(setSaved(db, 999), false);
+});

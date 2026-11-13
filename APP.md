@@ -52,5 +52,5 @@ Add to Claude Desktop's `claude_desktop_config.json`:
 
 Or for Claude Code: `claude mcp add arss -- node /Users/YOU/arss-app/src/mcp.js`
 
-Tools: `list_feeds`, `get_items` (filter by feed, unread, date, search), `get_item`, `mark_read`.
+Tools: `list_feeds`, `get_items` (filter by feed, unread, date, search), `get_item`, `mark_read`, `save_items`.
 The MCP process reads the same SQLite file as the web app (WAL mode), so it works whether or not the web server is running, though fetching only happens while the server runs.
