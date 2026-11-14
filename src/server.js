@@ -1,6 +1,6 @@
 import express from 'express';
 import { openDb, listFeeds, listItems, parseInterval } from './db.js';
-import { fetchFeed, runDue } from './fetcher.js';
+import { fetchFeed, resolveFeedUrl, runDue } from './fetcher.js';
 import { mountMcp } from './mcp-http.js';
 
 const db = openDb();
@@ -14,8 +14,10 @@ const getFeed = (id) => db.prepare('SELECT * FROM feeds WHERE id = ?').get(id);
 app.get('/api/feeds', (req, res) => res.json(listFeeds(db)));
 
 app.post('/api/feeds', wrap(async (req, res) => {
-  const url = new URL(req.body.url).toString();
   const interval = parseInterval(req.body.interval ?? 'daily');
+  // Accepts a feed URL, or a site ("example.com") whose feed is discovered from its <link rel="alternate">.
+  const url = await resolveFeedUrl(req.body.url);
+  if (db.prepare('SELECT 1 FROM feeds WHERE url = ?').get(url)) throw new Error('Already following ' + url);
   const r = db.prepare('INSERT INTO feeds (url, interval_minutes, created_at) VALUES (?, ?, ?)').run(url, interval, Date.now());
   const feed = getFeed(r.lastInsertRowid);
   const result = await fetchFeed(db, feed);
