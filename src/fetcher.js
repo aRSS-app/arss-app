@@ -81,6 +81,45 @@ export async function discoverIcon(siteUrl) {
   return null;
 }
 
+// Turn whatever was typed into the follow box into a feed URL. A feed URL is returned as it is;
+// a site (a bare domain like "example.com" works) is searched for <link rel="alternate"> feeds.
+export async function resolveFeedUrl(input) {
+  const typed = String(input ?? '').trim();
+  if (!typed) throw new Error('Enter a site or feed URL');
+  const explicit = /^https?:\/\//i.test(typed);
+  let lastError;
+  for (const attempt of explicit ? [typed] : [`https://${typed}`, `http://${typed}`]) {
+    const url = new URL(attempt).href;
+    let res, body;
+    try {
+      res = await fetch(url, {
+        headers: { 'User-Agent': UA, Accept: 'text/html, application/rss+xml, application/atom+xml, application/xml, text/xml, */*' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
+      });
+      body = (await res.text()).slice(0, 300000);
+      if (!res.ok) throw new Error('Status code ' + res.status);
+    } catch (e) { lastError = e.cause?.message ? `${e.message}: ${e.cause.message}` : e.message; continue; }
+
+    const head = body.slice(0, 2000);
+    const html = /<html[\s>]/i.test(head) || /html/i.test(res.headers.get('content-type') || '');
+    if (/<(rss|feed|rdf:RDF)[\s>]/i.test(head) && !/<html[\s>]/i.test(head)) return url;
+
+    const found = [...body.matchAll(/<link\b[^>]*>/gi)].map(([tag]) => ({
+      rel: (attrOf(tag, 'rel') || '').toLowerCase(), type: (attrOf(tag, 'type') || '').toLowerCase(),
+      href: httpUrl(attrOf(tag, 'href') || '', res.url || url), title: attrOf(tag, 'title') || '',
+    })).filter((l) => l.href && /(^|\s)alternate(\s|$)/.test(l.rel) && /^application\/(rss|atom|rdf)\+xml\b/.test(l.type));
+    // Sites often list a comments feed too; the posts feed is the one to follow.
+    const feed = found.find((l) => !/comments/i.test(l.title + l.href)) || found[0];
+    if (feed) return feed.href;
+    if (html) throw new Error(`No feed found on ${new URL(url).hostname}`);
+    return url;
+  }
+  // A full URL that can't be reached right now is still followed, so the error shows against the feed.
+  if (explicit) return new URL(typed).href;
+  throw new Error(`Could not reach ${typed}: ${lastError}`);
+}
+
 // Some real feeds contain bare ampersands outside CDATA, which is invalid XML.
 export const fixAmpersands = (xml) => xml.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
 

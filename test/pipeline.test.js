@@ -107,3 +107,28 @@ test('afterId returns only items added since', () => {
   add(2);
   assert.deepEqual(listItems(db, { afterId: first }).map((i) => i.title), ['Post 2']);
 });
+
+test('a site address resolves to the feed in its <link rel="alternate">', async () => {
+  const { resolveFeedUrl } = await import('../src/fetcher.js');
+  const page = (links) => `<!doctype html><html><head><title>Site</title>${links}</head><body></body></html>`;
+  const pages = {
+    '/': page(`<link rel="stylesheet" href="/s.css"><link rel="alternate" type="application/rss+xml" title="Site &raquo; Comments Feed" href="/comments/feed/">
+      <link href='/feed.xml?a=1&amp;b=2' title="Site" type='application/atom+xml' rel='alternate'>`),
+    '/none': page('<link rel="alternate" hreflang="fr" href="/fr/">'),
+  };
+  const srv = createServer((req, res) => {
+    if (req.url === '/feed') { res.setHeader('content-type', 'text/html'); return res.end(rss); } // feeds are often mislabelled
+    if (!pages[req.url]) { res.statusCode = 404; return res.end(); }
+    res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(pages[req.url]);
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const site = `127.0.0.1:${srv.address().port}`;
+  assert.equal(await resolveFeedUrl(site), `http://${site}/feed.xml?a=1&b=2`); // bare domain, no scheme
+  assert.equal(await resolveFeedUrl(`http://${site}/`), `http://${site}/feed.xml?a=1&b=2`);
+  assert.equal(await resolveFeedUrl(`http://${site}/feed`), `http://${site}/feed`);
+  await assert.rejects(resolveFeedUrl(`${site}/none`), /No feed found on 127\.0\.0\.1/);
+  assert.equal(await resolveFeedUrl(`http://${site}/down`), `http://${site}/down`);
+  await assert.rejects(resolveFeedUrl(`${site}/down`), /Could not reach/);
+  await assert.rejects(resolveFeedUrl(' '), /Enter a site/);
+  srv.close();
+});
