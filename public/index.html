@@ -6,13 +6,14 @@
 <title>aRSS</title>
 <style>
   :root {
-    --bg:#fff; --fg:#0f1419; --muted:#5b6876; --line:#e6ecf0; --hover:#f6f8fa; --accent:#1d7fe0; --accent-fg:#fff; --danger:#c8102e;
+    --bg:#fff; --fg:#0f1419; --muted:#5b6876; --line:#e6ecf0; --hover:#f6f8fa; --accent:#1d7fe0; --accent-fg:#fff; --danger:#c8102e; --like:#e0245e;
     color-scheme: light dark;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#12161b; --fg:#e9eef2; --muted:#8b98a5; --line:#273038; --hover:#1a2027; --accent:#4aa3f5; --accent-fg:#0b1117; --danger:#ff6b81; }
+    :root { --bg:#12161b; --fg:#e9eef2; --muted:#8b98a5; --line:#273038; --hover:#1a2027; --accent:#4aa3f5; --accent-fg:#0b1117; --danger:#ff6b81; --like:#f91880; }
   }
   * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
   html { scrollbar-gutter:stable; }
   body { margin:0; font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--fg); }
   a { color:inherit; text-decoration:none; }
@@ -26,22 +27,37 @@
   .brand { font-size:24px; font-weight:800; letter-spacing:-.5px; margin:2px 8px 2px; }
   .brand span { color:var(--accent); }
   .strap { color:var(--muted); font-size:13px; margin:0 8px 16px; }
-  form.add { display:grid; gap:8px; margin:0 0 16px; }
-  form.add input, form.add select, .feedmeta select { padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); min-width:0; }
+  form.add { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; gap:8px; padding:14px 16px; border-bottom:1px solid var(--line); }
+  form.add input[name=custom] { grid-column:1 / -1; }
+  form.add input, form.add select, .profile select { padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); min-width:0; }
   .pill { border:0; border-radius:999px; padding:9px 16px; font-weight:700; background:var(--accent); color:var(--accent-fg); }
   .pill:disabled { opacity:.6; }
   .ghost { border:1px solid var(--line); border-radius:999px; padding:5px 12px; background:transparent; font-size:13px; }
   .ghost:hover { background:var(--hover); }
   .ghost.danger { color:var(--danger); }
-  .feed { display:flex; align-items:center; gap:10px; padding:8px; border-radius:999px; cursor:pointer; }
-  .feed:hover { background:var(--hover); }
-  .feed.active { font-weight:700; }
-  .feed .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  nav a { display:flex; align-items:center; gap:14px; padding:10px 12px; border-radius:999px; font-size:19px; }
+  nav a:hover { background:var(--hover); }
+  nav a.active { font-weight:700; }
+  nav svg { width:26px; height:26px; flex:none; }
+  nav .name { flex:1; }
   .count { color:var(--muted); font-size:12px; font-weight:400; padding-right:6px; }
-  .feedmeta { display:none; font-size:13px; color:var(--muted); padding:4px 8px 12px 46px; }
-  .feed.active + .feedmeta { display:grid; gap:8px; }
-  .feedmeta .actions { display:flex; flex-wrap:wrap; gap:6px; }
   .err { color:var(--danger); }
+
+  /* Following: each feed as a profile */
+  .profile { display:flex; gap:14px; padding:16px; border-bottom:1px solid var(--line); }
+  .profile .avatar { width:64px; height:64px; font-size:26px; }
+  .profile .body { flex:1; min-width:0; display:grid; gap:6px; }
+  .profile .pname { font-size:19px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .profile a.pname:hover { text-decoration:underline; }
+  .profile .site { color:var(--muted); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .profile .site a:hover { color:var(--accent); }
+  .profile .stats { color:var(--muted); font-size:13px; display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .profile .stats b { color:var(--fg); }
+  .profile .actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:4px; }
+  .profile select { padding:4px 10px; border-radius:999px; font-size:13px; }
+  .profile.big { padding:20px 16px; }
+  .profile.big .avatar { width:84px; height:84px; font-size:34px; }
+  .profile.big .pname { font-size:22px; }
 
   /* Avatars: the site's favicon in a circle, or its initial if it has none */
   .avatar { flex:none; width:44px; height:44px; border-radius:50%; overflow:hidden; display:grid; place-items:center; background:var(--hover); border:1px solid var(--line); font-weight:700; font-size:18px; color:#fff; }
@@ -73,8 +89,15 @@
   .post p { margin:6px 0 0; overflow-wrap:anywhere; }
   .post .media { display:block; margin-top:12px; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--hover); }
   .post .media img { display:block; width:100%; max-height:420px; object-fit:cover; }
-  .post .foot { display:flex; gap:14px; margin-top:10px; color:var(--muted); font-size:13px; }
+  .post .foot { display:flex; align-items:center; gap:14px; margin-top:10px; color:var(--muted); font-size:13px; }
   .post .foot a:hover { color:var(--accent); }
+  .like { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; margin:-8px -6px -8px -8px; border:0; border-radius:50%; background:transparent; color:var(--muted); }
+  .like svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; }
+  .like:hover { color:var(--like); background:color-mix(in srgb, var(--like) 12%, transparent); }
+  .like[aria-pressed=true] { color:var(--like); }
+  .like[aria-pressed=true] svg { fill:currentColor; }
+  .like.pop svg { animation:pop .3s ease-out; }
+  @keyframes pop { 50% { transform:scale(1.3); } }
   .post .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); align-self:center; flex:none; }
   .post.read .dot { visibility:hidden; }
   .post.read h2 { font-weight:700; color:color-mix(in srgb, var(--fg) 72%, var(--bg)); }
@@ -90,6 +113,8 @@
     aside { display:none; position:static; height:auto; border-bottom:1px solid var(--line); }
     body.menu aside { display:block; }
     #menu { display:inline-block; }
+    form.add { grid-template-columns:minmax(0, 1fr) auto; }
+    form.add input[name=url] { grid-column:1 / -1; }
     .post h2 { font-size:19px; }
   }
 </style>
@@ -99,7 +124,24 @@
 <aside>
   <div class="brand">a<span>RSS</span></div>
   <p class="strap">No algorithms. Just the people you follow, newest first.</p>
-  <form class="add" id="add">
+  <nav id="nav">
+    <a href="#" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span class="name">Home</span><span class="count" id="homeCount"></span></a>
+    <a href="#liked" data-view="liked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.6 3.6 4.5 7 4.5c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.4 0 5.5 3.1 4.3 6.4-1.8 5-9.3 9.6-9.3 9.6z"/></svg><span class="name">Liked</span></a>
+    <a href="#following" data-view="following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="4"/><path d="M2 20c0-3.9 3.1-6 7-6s7 2.1 7 6M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5c2 .7 3.5 2.4 3.5 5.5"/></svg><span class="name">Following</span><span class="count" id="followCount"></span></a>
+  </nav>
+</aside>
+<main>
+  <div class="bar">
+    <div class="row">
+      <button class="ghost" id="menu" aria-label="Menu">Menu</button>
+      <h1 id="heading">Home</h1>
+      <label id="unreadLabel"><input type="checkbox" id="unread"> Unread only</label>
+      <button class="ghost" id="refresh">Refresh</button>
+    </div>
+    <div class="row" id="searchRow"><input type="search" id="q" placeholder="Search posts"></div>
+    <div id="fresh" hidden><button class="pill" id="freshBtn"></button></div>
+  </div>
+  <form class="add" id="add" hidden>
     <input name="url" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Follow a site or feed URL" required>
     <select name="interval" aria-label="Check frequency">
       <option value="hourly">Check hourly</option>
@@ -107,22 +149,10 @@
       <option value="weekly">Check weekly</option>
       <option value="custom">Custom (minutes)...</option>
     </select>
-    <input name="custom" type="number" min="5" placeholder="Minutes" hidden>
     <button class="pill">Follow</button>
+    <input name="custom" type="number" min="5" placeholder="Minutes" hidden>
   </form>
-  <div id="feeds"></div>
-</aside>
-<main>
-  <div class="bar">
-    <div class="row">
-      <button class="ghost" id="menu" aria-label="Feeds">Feeds</button>
-      <h1 id="heading">Home</h1>
-      <label><input type="checkbox" id="unread"> Unread only</label>
-      <button class="ghost" id="refresh">Refresh</button>
-    </div>
-    <div class="row"><input type="search" id="q" placeholder="Search posts"></div>
-    <div id="fresh" hidden><button class="pill" id="freshBtn"></button></div>
-  </div>
+  <div id="profile"></div>
   <div id="items"></div>
   <div class="end" id="end"></div>
 </main>
@@ -139,7 +169,10 @@ const api = async (path, opts = {}) => {
 };
 const PAGE = 50, POST_LENGTH = 140;
 const POLL_MS = 60_000, NEW_MAX = 100;
-let feeds = [], current = null, shown = 0, latest = 0;
+// view: 'home', 'liked', 'following' or 'feed' (with `current` set to the feed's id).
+let feeds = [], view = 'home', current = null, shown = 0, latest = 0;
+const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.6 3.6 4.5 7 4.5c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.4 0 5.5 3.1 4.3 6.4-1.8 5-9.3 9.6-9.3 9.6z"/></svg>';
+const timeline = () => view === 'home' || view === 'feed';
 
 const label = (m) => m === 60 ? 'hourly' : m === 1440 ? 'daily' : m === 10080 ? 'weekly' : `every ${m} min`;
 const full = (ms) => ms ? new Date(ms).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
@@ -168,24 +201,42 @@ const letter = (name) => `<span style="background:hsl(${hue(name)} 45% 45%);widt
 const avatar = (name, icon, cls = '') => `<span class="avatar ${cls} ${safe(icon) ? '' : 'letter'}" data-name="${esc(name)}">${
   safe(icon) ? `<img src="${esc(icon)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : letter(name)}</span>`;
 
+// A followed feed as a profile: on the Following page, and above the feed's own posts (`big`).
+const profile = (f, big = false) => {
+  const name = f.title || host(f.url);
+  const site = safe(f.site_url) || safe(f.url);
+  return `
+    <section class="profile ${big ? 'big' : ''}">
+      <a href="#feed/${f.id}" title="Show posts from ${esc(name)}">${avatar(name, f.icon_url)}</a>
+      <div class="body">
+        ${big ? `<div class="pname">${esc(name)}</div>` : `<a class="pname" href="#feed/${f.id}">${esc(name)}</a>`}
+        <div class="site"><a href="${esc(site)}" target="_blank" rel="noopener">${esc(host(site))} ↗</a></div>
+        <div class="stats"><span><b>${f.item_count}</b> posts</span><span><b>${f.unread_count}</b> unread</span><span>Last checked ${full(f.last_fetched_at)}</span></div>
+        ${f.last_error ? `<div class="err">${esc(f.last_error)}</div>` : ''}
+        <div class="actions">
+          <select data-interval="${f.id}" aria-label="Check frequency">
+            ${[['60','Check hourly'],['1440','Check daily'],['10080','Check weekly']].map(([v, n]) => `<option value="${v}" ${f.interval_minutes == v ? 'selected' : ''}>${n}</option>`).join('')}
+            ${[60,1440,10080].includes(f.interval_minutes) ? '' : `<option selected value="${f.interval_minutes}">Check ${label(f.interval_minutes)}</option>`}
+          </select>
+          <button class="ghost" data-refresh="${f.id}">Refresh</button><button class="ghost" data-readall="${f.id}">Mark read</button><button class="ghost danger" data-del="${f.id}">Unfollow</button>
+        </div>
+      </div>
+    </section>`;
+};
+
 async function loadFeeds() {
   feeds = await api('/feeds');
   const total = feeds.reduce((n, f) => n + f.unread_count, 0);
-  const active = feeds.find((f) => f.id === current);
-  $('#heading').textContent = active ? (active.title || host(active.url)) : 'Home';
-  $('#feeds').innerHTML =
-    `<div class="feed ${current === null ? 'active' : ''}" data-id=""><span class="avatar small letter"><span style="background:var(--accent);width:100%;height:100%;display:grid;place-items:center">⌂</span></span><span class="name">Home</span><span class="count">${total || ''}</span></div>` +
-    feeds.map((f) => `
-      <div class="feed ${current === f.id ? 'active' : ''}" data-id="${f.id}">${avatar(f.title || host(f.url), f.icon_url, 'small')}<span class="name">${esc(f.title || f.url)}</span><span class="count">${f.unread_count || ''}</span></div>
-      <div class="feedmeta">
-        ${f.last_error ? `<div class="err">${esc(f.last_error)}</div>` : ''}
-        <div>Last checked ${full(f.last_fetched_at)}</div>
-        <div><select data-interval="${f.id}" aria-label="Check frequency">
-          ${[['60','Check hourly'],['1440','Check daily'],['10080','Check weekly']].map(([v, n]) => `<option value="${v}" ${f.interval_minutes == v ? 'selected' : ''}>${n}</option>`).join('')}
-          ${[60,1440,10080].includes(f.interval_minutes) ? '' : `<option selected value="${f.interval_minutes}">Check ${label(f.interval_minutes)}</option>`}
-        </select></div>
-        <div class="actions"><button class="ghost" data-refresh="${f.id}">Refresh</button><button class="ghost" data-readall="${f.id}">Mark read</button><button class="ghost danger" data-del="${f.id}">Unfollow</button></div>
-      </div>`).join('');
+  const active = view === 'feed' && feeds.find((f) => f.id === current);
+  $('#heading').textContent = active ? (active.title || host(active.url)) : { home: 'Home', liked: 'Liked', following: 'Following' }[view] || '';
+  $('#homeCount').textContent = total || '';
+  $('#followCount').textContent = feeds.length || '';
+  for (const a of $('#nav').children) a.classList.toggle('active', a.dataset.view === view);
+  $('#profile').innerHTML = active ? profile(active, true) : '';
+  if (view === 'following') {
+    $('#items').innerHTML = feeds.map((f) => profile(f)).join('');
+    $('#end').textContent = feeds.length ? '' : "You're not following anyone yet. Paste a site or feed address above to start.";
+  }
 }
 
 const post = (i) => {
@@ -194,31 +245,36 @@ const post = (i) => {
   const ts = i.published_at || i.fetched_at;
   const text = excerpt(i);
   const link = safe(i.link);
+  // A liked post from a feed you've since unfollowed has nowhere to link to.
+  const feed = feeds.some((f) => f.id === i.feed_id) ? `data-feed="${i.feed_id}"` : '';
   return `
-    <article class="post ${i.read ? 'read' : ''}" data-id="${i.id}">
-      <span data-feed="${i.feed_id}" title="Show only ${esc(name)}">${avatar(name, i.feed_icon)}</span>
+    <article class="post ${i.read ? 'read' : ''}" data-id="${i.id ?? ''}" ${i.like_id ? `data-like="${i.like_id}"` : ''}>
+      <span ${feed} title="${feed ? `Show only ${esc(name)}` : ''}">${avatar(name, i.feed_icon)}</span>
       <div class="body">
-        <div class="who"><span class="owner" data-feed="${i.feed_id}">${esc(name)}</span><span class="host">${esc(site)}</span><span>·</span><time datetime="${new Date(ts).toISOString()}" title="${esc(full(ts))}">${when(ts)}</time></div>
+        <div class="who"><span class="owner" ${feed}>${esc(name)}</span><span class="host">${esc(site)}</span><span>·</span><time datetime="${new Date(ts).toISOString()}" title="${esc(full(ts))}">${when(ts)}</time></div>
         <h2><a href="${esc(link)}" target="_blank" rel="noopener">${esc(i.title || '(untitled)')}</a></h2>
         ${text ? `<p>${esc(text)}</p>` : ''}
         ${safe(i.image) ? `<a class="media" href="${esc(link)}" target="_blank" rel="noopener"><img src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>` : ''}
-        <div class="foot"><span class="dot" title="Unread"></span>${i.author ? `<span>${esc(i.author)}</span>` : ''}<a href="${esc(link)}" target="_blank" rel="noopener">View on ${esc(host(link) || site)} ↗</a></div>
+        <div class="foot"><button class="like" aria-pressed="${!!i.liked}" aria-label="Like" title="Like">${HEART}</button><span class="dot" title="Unread"></span>${i.author ? `<span>${esc(i.author)}</span>` : ''}<a href="${esc(link)}" target="_blank" rel="noopener">View on ${esc(host(link) || site)} ↗</a></div>
       </div>
     </article>`;
 };
 
 async function loadItems(more = false) {
+  if (view === 'following') return; // rendered by loadFeeds
   if (!more) { shown = 0; latest = await api('/latest').then((r) => r.id, () => null); showFresh(0, 0); }
   const p = new URLSearchParams({ limit: PAGE, offset: shown });
-  if (current) p.set('feed', current);
-  if ($('#unread').checked) p.set('unread', '1');
+  if (view === 'feed') p.set('feed', current);
+  if (view !== 'liked' && $('#unread').checked) p.set('unread', '1');
   if ($('#q').value) p.set('q', $('#q').value);
-  const items = await api('/items?' + p);
+  const items = await api((view === 'liked' ? '/likes?' : '/items?') + p);
   const html = items.map(post).join('');
   if (more) $('#items').insertAdjacentHTML('beforeend', html); else $('#items').innerHTML = html;
   shown += items.length;
   $('#end').innerHTML = items.length === PAGE ? '<button class="ghost" id="more">Show older posts</button>'
-    : shown ? "That's everything. You're all caught up." : 'Nothing here yet. Follow a feed to get started.';
+    : shown ? "That's everything. You're all caught up."
+    : view === 'liked' ? ($('#q').value ? 'No liked posts match that search.' : 'Nothing liked yet. Tap the heart on a post to keep it here.')
+    : 'Nothing here yet. Follow a feed to get started.';
 }
 
 // New posts since the timeline was last loaded: `all` goes in the tab title, `here` (those matching
@@ -233,10 +289,10 @@ async function checkFresh() {
   if (latest === null) return; // an older server without /api/latest: no new-post checks
   try {
     const all = (await api(`/items?after=${latest}&limit=${NEW_MAX}`)).length;
-    let here = all;
-    if (all && (current || $('#q').value)) {
+    let here = timeline() ? all : 0;
+    if (here && (view === 'feed' || $('#q').value)) {
       const p = new URLSearchParams({ after: latest, limit: NEW_MAX });
-      if (current) p.set('feed', current);
+      if (view === 'feed') p.set('feed', current);
       if ($('#q').value) p.set('q', $('#q').value);
       here = (await api('/items?' + p)).length;
     }
@@ -244,8 +300,25 @@ async function checkFresh() {
   } catch { /* server unreachable: try again on the next poll */ }
 }
 
-const reload = () => Promise.all([loadFeeds(), loadItems()]);
-const show = (id) => { current = id; document.body.classList.remove('menu'); window.scrollTo(0, 0); return reload(); };
+// Feeds first: posts need them to know which avatars still link somewhere.
+const reload = async () => { await loadFeeds(); await loadItems(); };
+
+// Routes: #liked, #following, #feed/<id>, anything else is Home. The back button works between them.
+function route() {
+  const [, name, id] = location.hash.match(/^#(liked|following|feed)(?:\/(\d+))?$/) || [];
+  view = name === 'feed' && id ? 'feed' : name && name !== 'feed' ? name : 'home';
+  current = view === 'feed' ? Number(id) : null;
+  $('#add').hidden = view !== 'following';
+  $('#searchRow').hidden = view === 'following';
+  $('#unreadLabel').hidden = !timeline();
+  $('#q').placeholder = view === 'liked' ? 'Search liked posts' : 'Search posts';
+  $('#items').innerHTML = $('#end').innerHTML = '';
+  document.body.classList.remove('menu');
+  window.scrollTo(0, 0);
+  showFresh(0, 0);
+  return reload();
+}
+const show = (id) => { location.hash = id ? `feed/${id}` : ''; };
 
 // A favicon or featured image that fails to load: fall back to the initial, or drop the image.
 document.addEventListener('error', (e) => {
@@ -266,28 +339,53 @@ $('#add').onsubmit = async (e) => {
     const r = await api('/feeds', { method: 'POST', body: { url: f.url.value, interval } });
     if (r.result.error) alert('Followed, but the first fetch failed: ' + r.result.error);
     e.target.reset(); f.custom.hidden = true;
-    await reload();
+    await loadFeeds();
   } catch (err) { alert(err.message); } finally { btn.disabled = false; }
 };
 
-$('#feeds').onclick = async (e) => {
-  const t = e.target;
-  if (t.dataset.refresh) { t.disabled = true; await api(`/feeds/${t.dataset.refresh}/refresh`, { method: 'POST' }); return reload(); }
-  if (t.dataset.readall) { await api(`/feeds/${t.dataset.readall}/read-all`, { method: 'POST' }); return reload(); }
-  if (t.dataset.del) { if (confirm('Unfollow this feed and delete its posts?')) { await api(`/feeds/${t.dataset.del}`, { method: 'DELETE' }); show(null); } return; }
-  if (t.tagName === 'SELECT' || t.tagName === 'OPTION') return;
-  const row = t.closest('.feed');
-  if (row) show(row.dataset.id ? Number(row.dataset.id) : null);
-};
-$('#feeds').onchange = async (e) => {
+// Profile buttons, on the Following page and at the top of a feed's posts.
+async function profileAction(t) {
+  if (t.dataset.refresh) { t.disabled = true; await api(`/feeds/${t.dataset.refresh}/refresh`, { method: 'POST' }); await reload(); return true; }
+  if (t.dataset.readall) { await api(`/feeds/${t.dataset.readall}/read-all`, { method: 'POST' }); await reload(); return true; }
+  if (t.dataset.del) {
+    if (confirm('Unfollow this feed and delete its posts? Posts you liked are kept.')) {
+      await api(`/feeds/${t.dataset.del}`, { method: 'DELETE' });
+      if (view === 'following') await reload(); else location.hash = 'following';
+    }
+    return true;
+  }
+}
+const onInterval = async (e) => {
   if (e.target.dataset.interval) await api(`/feeds/${e.target.dataset.interval}`, { method: 'PATCH', body: { interval: Number(e.target.value) } });
 };
+$('#profile').onclick = (e) => profileAction(e.target);
+$('#profile').onchange = $('#items').onchange = onInterval;
+
+async function toggleLike(btn) {
+  const a = btn.closest('article');
+  const on = btn.getAttribute('aria-pressed') !== 'true';
+  // On the Liked page, unliking takes the post off the list (it may be from a feed you've unfollowed).
+  if (view === 'liked' && !on) {
+    await api(`/likes/${a.dataset.like}`, { method: 'DELETE' });
+    a.remove(); shown--;
+    if (!$('#items').children.length) loadItems();
+    return;
+  }
+  btn.setAttribute('aria-pressed', on);
+  btn.classList.toggle('pop', on);
+  try { await api(`/items/${a.dataset.id}/like`, { method: on ? 'PUT' : 'DELETE' }); }
+  catch (err) { btn.setAttribute('aria-pressed', !on); alert(err.message); }
+}
+
 $('#items').onclick = async (e) => {
+  if (await profileAction(e.target)) return;
+  const like = e.target.closest('.like');
+  if (like) return toggleLike(like);
   const feed = e.target.closest('[data-feed]');
   if (feed) return show(Number(feed.dataset.feed));
   if (!e.target.closest('a')) return;
   const a = e.target.closest('article');
-  if (!a.classList.contains('read')) { a.classList.add('read'); await api(`/items/${a.dataset.id}/read`, { method: 'POST', body: {} }); loadFeeds(); }
+  if (a && a.dataset.id && !a.classList.contains('read')) { a.classList.add('read'); await api(`/items/${a.dataset.id}/read`, { method: 'POST', body: {} }); loadFeeds(); }
 };
 $('#end').onclick = (e) => { if (e.target.id === 'more') { e.target.disabled = true; loadItems(true); } };
 $('#menu').onclick = () => { document.body.classList.toggle('menu'); window.scrollTo(0, 0); };
@@ -297,7 +395,8 @@ $('#freshBtn').onclick = () => { window.scrollTo(0, 0); reload(); };
 setInterval(checkFresh, POLL_MS);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkFresh(); });
 let t; $('#q').oninput = () => { clearTimeout(t); t = setTimeout(() => loadItems(), 250); };
-reload();
+window.addEventListener('hashchange', route);
+route();
 </script>
 </body>
 </html>

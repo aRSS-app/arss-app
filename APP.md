@@ -16,7 +16,7 @@ Simple self-hosted RSS reader. Node 22.13+, no native dependencies.
 
 Paste a feed URL or just a site address (`example.com`) into the follow box; for a site, the feed is found from its `<link rel="alternate">` tag.
 
-Each feed has its own frequency (hourly, daily, weekly or custom minutes), set when subscribing and changeable per feed in the sidebar. The scheduler checks once a minute and fetches any feed whose interval has elapsed. "Refresh" forces a fetch.
+Each feed has its own frequency (hourly, daily, weekly or custom minutes), set when subscribing and changeable per feed on the Following page. The scheduler checks once a minute and fetches any feed whose interval has elapsed. "Refresh" forces a fetch.
 
 Keep it running on the Mac mini with launchd (save as `~/Library/LaunchAgents/app.arss.plist`, fix paths, then `launchctl load` it):
 

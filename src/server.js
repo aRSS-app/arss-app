@@ -1,5 +1,5 @@
 import express from 'express';
-import { openDb, listFeeds, listItems, parseInterval } from './db.js';
+import { openDb, listFeeds, listItems, listLikes, likeItem, unlikeItem, unlike, parseInterval } from './db.js';
 import { fetchFeed, resolveFeedUrl, runDue } from './fetcher.js';
 import { mountMcp } from './mcp-http.js';
 
@@ -67,6 +67,23 @@ app.get('/api/latest', (req, res) => res.json({ id: db.prepare('SELECT MAX(id) A
 
 app.post('/api/items/:id/read', (req, res) => {
   db.prepare('UPDATE items SET read = ? WHERE id = ?').run(req.body?.read === false ? 0 : 1, req.params.id);
+  res.status(204).end();
+});
+
+// Like or unlike a timeline post.
+app.put('/api/items/:id/like', (req, res) => {
+  if (!likeItem(db, Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  res.status(204).end();
+});
+app.delete('/api/items/:id/like', (req, res) => {
+  unlikeItem(db, Number(req.params.id));
+  res.status(204).end();
+});
+
+// Liked posts, including those from feeds you no longer follow (deleted by the like's own id).
+app.get('/api/likes', (req, res) => res.json(listLikes(db, { search: req.query.q || undefined, limit: req.query.limit, offset: req.query.offset })));
+app.delete('/api/likes/:id', (req, res) => {
+  unlike(db, Number(req.params.id));
   res.status(204).end();
 });
 

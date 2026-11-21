@@ -43,7 +43,66 @@ export function openDb(path = DB_PATH) {
   };
   addColumn('feeds', 'icon_url');
   addColumn('items', 'image');
+  // Likes keep their own copy of the post, so they outlive unfollowing the feed (which deletes its items).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS likes (
+      id INTEGER PRIMARY KEY,
+      item_id INTEGER UNIQUE REFERENCES items(id) ON DELETE SET NULL,
+      feed_id INTEGER,
+      feed_title TEXT,
+      feed_url TEXT,
+      feed_site_url TEXT,
+      feed_icon TEXT,
+      title TEXT,
+      link TEXT,
+      author TEXT,
+      summary TEXT,
+      content TEXT,
+      image TEXT,
+      published_at INTEGER,
+      fetched_at INTEGER,
+      liked_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS likes_published ON likes(published_at DESC);
+  `);
   return db;
+}
+
+export function likeItem(db, itemId, now = Date.now()) {
+  const r = db.prepare(`
+    INSERT OR IGNORE INTO likes (item_id, feed_id, feed_title, feed_url, feed_site_url, feed_icon,
+      title, link, author, summary, content, image, published_at, fetched_at, liked_at)
+    SELECT i.id, f.id, f.title, f.url, f.site_url, f.icon_url,
+      i.title, i.link, i.author, i.summary, i.content, i.image, i.published_at, i.fetched_at, ?
+    FROM items i JOIN feeds f ON f.id = i.feed_id WHERE i.id = ?`).run(now, itemId);
+  return r.changes > 0 || !!db.prepare('SELECT 1 FROM likes WHERE item_id = ?').get(itemId);
+}
+
+export function unlikeItem(db, itemId) {
+  db.prepare('DELETE FROM likes WHERE item_id = ?').run(itemId);
+}
+
+export function unlike(db, likeId) {
+  db.prepare('DELETE FROM likes WHERE id = ?').run(likeId);
+}
+
+// Liked posts, newest post first, shaped like listItems rows. `id` is the item's id while it still
+// exists (null once its feed is unfollowed); `like_id` always identifies the like.
+export function listLikes(db, { search, limit = 50, offset = 0 } = {}) {
+  const args = [];
+  let where = '';
+  if (search) {
+    where = `WHERE (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')`;
+    const like = `%${String(search).replace(/[\\%_]/g, '\\$&')}%`;
+    args.push(like, like, like);
+  }
+  return db.prepare(`
+    SELECT id AS like_id, item_id AS id, feed_id, feed_title, feed_url, feed_site_url, feed_icon,
+           title, link, author, summary, content, image, published_at, fetched_at, liked_at,
+           COALESCE((SELECT i.read FROM items i WHERE i.id = likes.item_id), 1) AS read, 1 AS liked
+    FROM likes ${where}
+    ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC
+    LIMIT ? OFFSET ?`).all(...args, Math.min(Number(limit) || 50, 500), Number(offset) || 0);
 }
 
 export const INTERVAL_PRESETS = { hourly: 60, daily: 1440, weekly: 10080 };
@@ -77,7 +136,8 @@ export function listItems(db, { feedId, unread, search, since, afterId, limit = 
   const sql = `
     SELECT i.id, i.feed_id, f.title AS feed_title, i.title, i.link, i.author, i.summary, i.content, i.image,
            f.icon_url AS feed_icon, f.site_url AS feed_site_url, f.url AS feed_url,
-           i.published_at, i.fetched_at, i.read
+           i.published_at, i.fetched_at, i.read,
+           EXISTS (SELECT 1 FROM likes l WHERE l.item_id = i.id) AS liked
     FROM items i JOIN feeds f ON f.id = i.feed_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY COALESCE(i.published_at, i.fetched_at) DESC, i.id DESC
