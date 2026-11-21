@@ -28,7 +28,8 @@ This gives us a chance to tap into data structures that already exist, where peo
 ## What you get
 
 - A single chronological timeline of everything you subscribe to: blogs, podcasts, YouTube channels, newsletters, anything with an RSS or Atom feed
-- Per-feed views, search and unread tracking
+- A profile page for each feed you follow, plus search and unread tracking
+- Like posts with a heart to find them again on the Liked page, even after you unfollow the feed
 - A fetch schedule per feed (hourly, daily, weekly or custom minutes)
 - An [MCP](https://modelcontextprotocol.io/) service, so your agent of choice can search your feeds and find content you read and have since forgotten
 - One small Node server and a SQLite file, with no accounts and no native dependencies. Run it locally, or deploy it somewhere you trust to keep it safe

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { openDb, listItems, parseInterval } from '../src/db.js';
+import { openDb, listItems, listLikes, likeItem, unlikeItem, parseInterval } from '../src/db.js';
 import { fetchFeed, dueFeeds, fixAmpersands } from '../src/fetcher.js';
 
 const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title><link>http://x</link>
@@ -131,4 +131,29 @@ test('a site address resolves to the feed in its <link rel="alternate">', async 
   await assert.rejects(resolveFeedUrl(`${site}/down`), /Could not reach/);
   await assert.rejects(resolveFeedUrl(' '), /Enter a site/);
   srv.close();
+});
+
+test('likes are listed newest first and outlive unfollowing', () => {
+  const db = openDb(':memory:');
+  db.prepare("INSERT INTO feeds (id, url, title, created_at) VALUES (1, 'http://f', 'Feed', 0)").run();
+  const add = db.prepare('INSERT INTO items (feed_id, guid, title, published_at, fetched_at) VALUES (1, ?, ?, ?, 0)');
+  const old = add.run('a', 'Old', 1000).lastInsertRowid;
+  const fresh = add.run('b', 'Fresh', 2000).lastInsertRowid;
+
+  assert.equal(likeItem(db, old), true);
+  assert.equal(likeItem(db, fresh), true);
+  assert.equal(likeItem(db, fresh), true); // liking twice is harmless
+  assert.equal(likeItem(db, 999), false);
+  assert.deepEqual(listLikes(db).map((l) => l.title), ['Fresh', 'Old']);
+  assert.equal(listItems(db, {}).find((i) => i.id === Number(fresh)).liked, 1);
+  assert.equal(listLikes(db, { search: 'old' }).length, 1);
+
+  unlikeItem(db, old);
+  assert.deepEqual(listLikes(db).map((l) => l.title), ['Fresh']);
+
+  db.prepare('DELETE FROM feeds WHERE id = 1').run();
+  const [kept] = listLikes(db);
+  assert.equal(kept.title, 'Fresh');
+  assert.equal(kept.feed_title, 'Feed');
+  assert.equal(kept.id, null);
 });
